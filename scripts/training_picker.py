@@ -1,8 +1,8 @@
 import os
 import sys
 import gradio as gr
+import modules.extras
 import modules.ui
-import time
 from modules.shared import opts, cmd_opts
 from modules import shared, scripts, paths, script_callbacks
 from pathlib import Path
@@ -43,9 +43,10 @@ def on_ui_tabs():
                 video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract keyframes from")
                 extract_keyframes_button = gr.Button(value="Extract Keyframes", variant="primary")
                 log_output = gr.HTML(value="")
+                test_button = gr.Button(value="Stuff")
             with gr.Column():
                 frameset_dropdown = gr.Dropdown(choices=framesets_list, elem_id="frameset_dropdown", label="Extracted Frame Set", interactive=True)
-                frame_browser = gr.Image(interactive=False)
+                frame_browser = gr.Image(interactive=False, elem_id="frame_browser", show_label=False)
                 with gr.Row():
                     prev_button = gr.Button(value="<")
                     frame_counter = gr.HTML(value="")
@@ -98,6 +99,8 @@ def on_ui_tabs():
                 current_frame_set_index = (current_frame_set_index + 1) % len(current_frame_set)
             return get_image_update()
         next_button.click(fn=next_button_click, inputs=[], outputs=[frame_browser, frame_counter])
+
+        test_button.click(fn=None, inputs=[video_dropdown], outputs=[log_output], _js="test_func")
 
     return (training_picker, "Training Picker", "training_picker"),
 
