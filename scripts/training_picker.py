@@ -20,6 +20,9 @@ picker_path = Path(paths.script_path) / "training-picker"
 videos_path = picker_path / "videos"
 framesets_path = picker_path / "extracted-frames"
 
+current_frame_set = []
+current_frame_set_index = 0
+
 for p in [videos_path, framesets_path]:
     os.makedirs(p, exist_ok=True)
 
@@ -33,6 +36,7 @@ def on_ui_tabs():
     with gr.Blocks(analytics_enabled=False) as training_picker:
         videos_list = get_videos_list()
         framesets_list = get_framesets_list()
+
         # structure
         with gr.Row():
             with gr.Column():
@@ -41,7 +45,11 @@ def on_ui_tabs():
                 log_output = gr.HTML(value="")
             with gr.Column():
                 frameset_dropdown = gr.Dropdown(choices=framesets_list, elem_id="frameset_dropdown", label="Extracted Frame Set", interactive=True)
-                frame_browser = gr.Gallery(label="Frames", elem_id="frame_gallery")
+                frame_browser = gr.Image(interactive=False)
+                with gr.Row():
+                    prev_button = gr.Button(value="<")
+                    frame_counter = gr.HTML(value="")
+                    next_button = gr.Button(value=">")
 
         # events
         def extract_keyframes_button_click(video_file):
@@ -61,10 +69,35 @@ def on_ui_tabs():
             return gr.Dropdown.update(choices=get_framesets_list()), f"Successfully created frame set {output_path.name}"
         extract_keyframes_button.click(fn=extract_keyframes_button_click, inputs=[video_dropdown], outputs=[frameset_dropdown, log_output])
 
+        def get_image_update():
+            global current_frame_set_index
+            global current_frame_set
+            return gr.Image.update(value=Image.open(current_frame_set[current_frame_set_index])), f"{current_frame_set_index+1}/{len(current_frame_set)}"
+
         def frameset_dropdown_change(frameset):
+            global current_frame_set_index
+            global current_frame_set
+            current_frame_set_index = 0
             full_path = framesets_path / frameset
-            return gr.Gallery.update(value=[Image.open(impath) for impath in full_path.iterdir() if impath.suffix == ".png"])
-        frameset_dropdown.change(fn=frameset_dropdown_change, inputs=[frameset_dropdown], outputs=[frame_browser])
+            current_frame_set = [impath for impath in full_path.iterdir() if impath.suffix == ".png"]
+            return get_image_update()
+        frameset_dropdown.change(fn=frameset_dropdown_change, inputs=[frameset_dropdown], outputs=[frame_browser, frame_counter])
+
+        def prev_button_click():
+            global current_frame_set_index
+            global current_frame_set
+            if current_frame_set != None:
+                current_frame_set_index = (current_frame_set_index - 1) % len(current_frame_set)
+            return get_image_update()
+        prev_button.click(fn=prev_button_click, inputs=[], outputs=[frame_browser, frame_counter])
+
+        def next_button_click():
+            global current_frame_set_index
+            global current_frame_set
+            if current_frame_set != None:
+                current_frame_set_index = (current_frame_set_index + 1) % len(current_frame_set)
+            return get_image_update()
+        next_button.click(fn=next_button_click, inputs=[], outputs=[frame_browser, frame_counter])
 
     return (training_picker, "Training Picker", "training_picker"),
 
