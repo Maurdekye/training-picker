@@ -63,9 +63,9 @@ def on_ui_tabs():
             with gr.Column():
                     frame_browser = gr.Image(interactive=False, elem_id="frame_browser", show_label=False)
                     with gr.Row():
-                        prev_button = gr.Button(value="<")
+                        prev_button = gr.Button(value="<", elem_id="prev_button")
                         frame_counter = gr.HTML(value="", elem_id="frame_counter")
-                        next_button = gr.Button(value=">")
+                        next_button = gr.Button(value=">", elem_id="next_button")
         
         # invisible elements
         crop_button = gr.Button(elem_id="crop_button", visible=False)
