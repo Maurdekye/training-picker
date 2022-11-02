@@ -19,4 +19,5 @@ Adds a tab to the webui that allows the user to automatically extract keyframes 
 4. After the extraction finishes, a new keyframe set for the video should be selectable in the dropdown on the right
 5. Select the keyframe set, and the frames will appear in the browser below
 6. Scroll up and down to increase or decrease the size of the crop, and click to save a crop at the mouse cursor position
-7. Crops will be saved to `training-picker/cropped-frames` by default
+7. Navigate between frames in the collection by clicking the navigation buttons, or with the arrow keys / AD
+8. Crops will be saved to `training-picker/cropped-frames` by default
