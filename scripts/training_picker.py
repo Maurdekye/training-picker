@@ -52,7 +52,7 @@ def on_ui_tabs():
                 with gr.Row():
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
                     gr.Column()
-                output_dir = gr.Text(value=picker_path / "cropped_frames", label="Save crops to:")
+                output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
         with gr.Row():
             with gr.Column():
                     with gr.Row():
