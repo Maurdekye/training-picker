@@ -1,0 +1,20 @@
+#cropPreviewRect {
+    position:absolute;
+    top:0px;
+    left:0px;
+    border:2px solid red;
+    background:rgba(255, 0, 0, 0.3);
+    z-index: 900;
+    pointer-events:none;
+    display:none
+}
+
+#frame_counter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#crop_parameters {
+    display: none;
+}

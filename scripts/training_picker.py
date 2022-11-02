@@ -1,3 +1,4 @@
+from code import interact
 import os
 import sys
 import gradio as gr
@@ -7,6 +8,8 @@ from modules.shared import opts, cmd_opts
 from modules import shared, scripts, paths, script_callbacks
 from pathlib import Path
 from PIL import Image
+import json
+import re
 
 try:
     import ffmpeg
@@ -40,35 +43,53 @@ def on_ui_tabs():
         # structure
         with gr.Row():
             with gr.Column():
-                video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract keyframes from")
+                video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract keyframes from:")
+                only_keyframes_checkbox = gr.Checkbox(value=True, label="Only extract keyframes")
                 extract_keyframes_button = gr.Button(value="Extract Keyframes", variant="primary")
                 log_output = gr.HTML(value="")
-                test_button = gr.Button(value="Stuff")
             with gr.Column():
                 frameset_dropdown = gr.Dropdown(choices=framesets_list, elem_id="frameset_dropdown", label="Extracted Frame Set", interactive=True)
-                frame_browser = gr.Image(interactive=False, elem_id="frame_browser", show_label=False)
                 with gr.Row():
-                    prev_button = gr.Button(value="<")
-                    frame_counter = gr.HTML(value="")
-                    next_button = gr.Button(value=">")
+                    resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
+                    gr.Column()
+                output_dir = gr.Text(value=picker_path / "cropped_frames", label="Save crops to:")
+        with gr.Row():
+            with gr.Column():
+                    with gr.Row():
+                        gr.Column()
+                        with gr.Column(scale=2):
+                            crop_preview = gr.Image(interactive=False, elem_id="crop_preveiw", show_label=False)
+                        gr.Column()
+            with gr.Column():
+                    frame_browser = gr.Image(interactive=False, elem_id="frame_browser", show_label=False)
+                    with gr.Row():
+                        prev_button = gr.Button(value="<")
+                        frame_counter = gr.HTML(value="", elem_id="frame_counter")
+                        next_button = gr.Button(value=">")
+        
+        # invisible elements
+        crop_button = gr.Button(elem_id="crop_button", visible=False)
+        crop_parameters = gr.Text(elem_id="crop_parameters", visible=False)
 
         # events
-        def extract_keyframes_button_click(video_file):
+        def extract_keyframes_button_click(video_file, only_keyframes):
             print(f"Extracting frames from {video_file}")
             full_path = videos_path / video_file
             output_path = framesets_path / Path(video_file).stem
             os.makedirs(output_path, exist_ok=True)
-            (
-                ffmpeg
-                .input(str(full_path),
+            if only_keyframes:
+                stream = ffmpeg.input(
+                    str(full_path),
                     skip_frame="nokey",
                     vsync="vfr")
-                .output(str((output_path / "%02d.png").resolve()))
-                .run()
-            )
+            else:
+                stream = ffmpeg.input(
+                    str(full_path)
+                )
+            stream.output(str((output_path / "%02d.png").resolve())).run()
             print("Extraction complete!")
             return gr.Dropdown.update(choices=get_framesets_list()), f"Successfully created frame set {output_path.name}"
-        extract_keyframes_button.click(fn=extract_keyframes_button_click, inputs=[video_dropdown], outputs=[frameset_dropdown, log_output])
+        extract_keyframes_button.click(fn=extract_keyframes_button_click, inputs=[video_dropdown, only_keyframes_checkbox], outputs=[frameset_dropdown, log_output])
 
         def get_image_update():
             global current_frame_set_index
@@ -100,7 +121,19 @@ def on_ui_tabs():
             return get_image_update()
         next_button.click(fn=next_button_click, inputs=[], outputs=[frame_browser, frame_counter])
 
-        test_button.click(fn=None, inputs=[video_dropdown], outputs=[log_output], _js="test_func")
+        def crop_button_click(raw_params, frame_browser, should_resize, output_dir):
+            params = json.loads(raw_params)
+            im = Image.fromarray(frame_browser)
+            cropped = im.crop((params['x1'], params['y1'], params['x2'], params['y2']))
+            if should_resize:
+                cropped = cropped.resize((512, 512))
+            save_path = Path(output_dir)
+            os.makedirs(str(save_path.resolve()), exist_ok=True)
+            frame_num = sum(1 for f in save_path.iterdir() if re.match(r"\d+.png", f.name))
+            filename = save_path / f"{frame_num}.png"
+            cropped.save(filename)
+            return gr.Image.update(value=cropped), f"Saved to {filename}"
+        crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir], outputs=[crop_preview, log_output])
 
     return (training_picker, "Training Picker", "training_picker"),
 
