@@ -43,8 +43,8 @@ def on_ui_tabs():
         # structure
         with gr.Row():
             with gr.Column():
-                video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract keyframes from:")
-                only_keyframes_checkbox = gr.Checkbox(value=True, label="Only extract keyframes")
+                video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract frames from:")
+                only_keyframes_checkbox = gr.Checkbox(value=True, label="Only extract keyframes (recommended)")
                 extract_keyframes_button = gr.Button(value="Extract Keyframes", variant="primary")
                 log_output = gr.HTML(value="")
             with gr.Column():
