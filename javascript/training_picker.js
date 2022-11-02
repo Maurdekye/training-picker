@@ -71,10 +71,12 @@ document.addEventListener("DOMContentLoaded", () => {
     })).observe(gradioApp(), {childList: true, subtree: true});
 
     document.addEventListener("keydown", e => {
-        if (e.code == "ArrowRight" || e.code == "KeyD") {
-            gradioApp().querySelector("#next_button").click();
-        } else if (e.code == "ArrowLeft" || e.code == "KeyA") {
-            gradioApp().querySelector("#prev_button").click();
+        if (mouseOn) {
+            if (e.code == "ArrowRight" || e.code == "KeyD") {
+                gradioApp().querySelector("#next_button").click();
+            } else if (e.code == "ArrowLeft" || e.code == "KeyA") {
+                gradioApp().querySelector("#prev_button").click();
+            }
         }
     });
 });
