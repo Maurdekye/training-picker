@@ -9,12 +9,16 @@
     display:none
 }
 
-#frame_counter {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 #crop_parameters {
     display: none;
+}
+
+#frame_number * {
+    border: none;
+    background: none;
+    padding: 0px;
+}
+
+#frame_number input {
+    float: right
 }

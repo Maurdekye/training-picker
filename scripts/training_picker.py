@@ -64,7 +64,9 @@ def on_ui_tabs():
                     frame_browser = gr.Image(interactive=False, elem_id="frame_browser", show_label=False)
                     with gr.Row():
                         prev_button = gr.Button(value="<", elem_id="prev_button")
-                        frame_counter = gr.HTML(value="", elem_id="frame_counter")
+                        with gr.Row():
+                            frame_number = gr.Number(value=0, elem_id="frame_number", live=True, show_label=False)
+                            frame_max = gr.HTML(value="", elem_id="frame_max")
                         next_button = gr.Button(value=">", elem_id="next_button")
         
         # invisible elements
@@ -94,7 +96,7 @@ def on_ui_tabs():
         def get_image_update():
             global current_frame_set_index
             global current_frame_set
-            return gr.Image.update(value=Image.open(current_frame_set[current_frame_set_index])), f"{current_frame_set_index+1}/{len(current_frame_set)}"
+            return gr.Image.update(value=Image.open(current_frame_set[current_frame_set_index])), current_frame_set_index+1, f"/{len(current_frame_set)}"
 
         def frameset_dropdown_change(frameset):
             global current_frame_set_index
@@ -103,23 +105,31 @@ def on_ui_tabs():
             full_path = framesets_path / frameset
             current_frame_set = [impath for impath in full_path.iterdir() if impath.suffix == ".png"]
             return get_image_update()
-        frameset_dropdown.change(fn=frameset_dropdown_change, inputs=[frameset_dropdown], outputs=[frame_browser, frame_counter])
+        frameset_dropdown.change(fn=frameset_dropdown_change, inputs=[frameset_dropdown], outputs=[frame_browser, frame_number, frame_max])
 
         def prev_button_click():
             global current_frame_set_index
             global current_frame_set
             if current_frame_set != None:
                 current_frame_set_index = (current_frame_set_index - 1) % len(current_frame_set)
-            return get_image_update()
-        prev_button.click(fn=prev_button_click, inputs=[], outputs=[frame_browser, frame_counter])
+                return get_image_update()
+        prev_button.click(fn=prev_button_click, inputs=[], outputs=[frame_browser, frame_number, frame_max])
 
         def next_button_click():
             global current_frame_set_index
             global current_frame_set
             if current_frame_set != None:
                 current_frame_set_index = (current_frame_set_index + 1) % len(current_frame_set)
-            return get_image_update()
-        next_button.click(fn=next_button_click, inputs=[], outputs=[frame_browser, frame_counter])
+                return get_image_update()
+        next_button.click(fn=next_button_click, inputs=[], outputs=[frame_browser, frame_number, frame_max])
+
+        def frame_number_change(frame_number):
+            global current_frame_set_index
+            global current_frame_set
+            if current_frame_set != None:
+                current_frame_set_index = int(min(max(0, frame_number - 1), len(current_frame_set) - 1))
+                return get_image_update()
+        frame_number.change(fn=frame_number_change, inputs=[frame_number], outputs=[frame_browser, frame_number, frame_max])
 
         def crop_button_click(raw_params, frame_browser, should_resize, output_dir):
             params = json.loads(raw_params)
@@ -129,8 +139,8 @@ def on_ui_tabs():
                 cropped = cropped.resize((512, 512))
             save_path = Path(output_dir)
             os.makedirs(str(save_path.resolve()), exist_ok=True)
-            frame_num = sum(1 for f in save_path.iterdir() if re.match(r"\d+.png", f.name))
-            filename = save_path / f"{frame_num}.png"
+            next_image_num = 1 + max(int(r.group(1)) for r in (re.match(r"(\d+).png", f.name) for f in save_path.iterdir()) if r)
+            filename = save_path / f"{next_image_num}.png"
             cropped.save(filename)
             return gr.Image.update(value=cropped), f"Saved to {filename}"
         crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir], outputs=[crop_preview, log_output])
