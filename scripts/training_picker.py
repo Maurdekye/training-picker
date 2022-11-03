@@ -139,7 +139,11 @@ def on_ui_tabs():
                 cropped = cropped.resize((512, 512))
             save_path = Path(output_dir)
             os.makedirs(str(save_path.resolve()), exist_ok=True)
-            next_image_num = 1 + max(int(r.group(1)) for r in (re.match(r"(\d+).png", f.name) for f in save_path.iterdir()) if r)
+            current_images = [r for r in (re.match(r"(\d+).png", f.name) for f in save_path.iterdir()) if r]
+            if current_images == []:
+                next_image_num = 0
+            else:
+                next_image_num = 1 + max(int(r.group(1)) for r in current_images)
             filename = save_path / f"{next_image_num}.png"
             cropped.save(filename)
             return gr.Image.update(value=cropped), f"Saved to {filename}"
