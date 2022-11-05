@@ -21,9 +21,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function updateCpr() {
         let img = gradioApp().querySelector("#frame_browser img");
-        xPos = Math.min(Math.max(img.x + cropSize / 2, mXPos), img.x + img.width - cropSize / 2);
-        yPos = Math.min(Math.max(img.y + cropSize / 2, mYPos), img.y + img.height - cropSize / 2);
-        cropSize = Math.min(Math.max(intervalStep, cropSize), Math.min(img.width, img.height));
+        let bound = img.getBoundingClientRect();
+        xPos = Math.min(Math.max(bound.left + cropSize / 2 + window.scrollX, mXPos), bound.right - cropSize / 2 + window.scrollX);
+        yPos = Math.min(Math.max(bound.top + cropSize / 2 + window.scrollY, mYPos), bound.bottom - cropSize / 2 + window.scrollY);
+        cropSize = Math.min(Math.max(intervalStep, cropSize), Math.min(bound.width, bound.height));
         let cpr = cropPreviewRect();
         cpr.style.width = cropSize + "px";
         cpr.style.height = cropSize + "px";
@@ -36,8 +37,8 @@ document.addEventListener("DOMContentLoaded", () => {
         let img = gradioApp().querySelector("#frame_browser img");
         if (img && (img.getAttribute("listeners") !== "true")) {
             img.addEventListener("mousemove", e => {
-                mXPos = e.clientX;
-                mYPos = e.clientY;
+                mXPos = e.pageX;
+                mYPos = e.pageY;
                 updateCpr();
             });
             img.addEventListener("mouseenter", e => {
@@ -49,17 +50,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 updateCpr();
             });
             img.addEventListener("wheel", e => {
+                e.preventDefault();
                 cropSize -= (e.deltaY/100) * intervalStep;
                 updateCpr();
             });
             img.addEventListener("click", e => {
                 updateCpr();
-                let ratio = img.naturalWidth / img.width;
+                let xRatio = img.naturalWidth / img.width;
+                let yRatio = img.naturalHeight / img.height;
+                let bound = img.getBoundingClientRect();
                 let cropData = {
-                    x1: Math.floor((xPos - cropSize / 2 - img.x) * ratio),
-                    y1: Math.floor((yPos - cropSize / 2 - img.y) * ratio),
-                    x2: Math.floor((xPos + cropSize / 2 - img.x) * ratio),
-                    y2: Math.floor((yPos + cropSize / 2 - img.y) * ratio)
+                    x1: Math.floor((xPos - cropSize / 2 - bound.left - window.scrollX) * xRatio),
+                    y1: Math.floor((yPos - cropSize / 2 - bound.top - window.scrollY) * yRatio),
+                    x2: Math.floor((xPos + cropSize / 2 - bound.left - window.scrollX) * xRatio),
+                    y2: Math.floor((yPos + cropSize / 2 - bound.top - window.scrollY) * yRatio)
                 };
                 let crop_parameters = gradioApp().querySelector("#crop_parameters textarea");
                 crop_parameters.value = JSON.stringify(cropData);
