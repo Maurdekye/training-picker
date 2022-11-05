@@ -17,3 +17,4 @@ You can also optionally provide these details if you think it'll help me figure 
 * Browser
 * Any error messages or logs, if applicable
 * Particular details about how you installed the extension or other relevant software
+* Screenshots demonstrating the issue
