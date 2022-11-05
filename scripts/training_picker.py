@@ -53,6 +53,14 @@ Requested path was: {f}
         else:
             subprocess.Popen(["xdg-open", path])
 
+def create_open_folder_button(path, elem_id):
+    button = gr.Button(folder_symbol, elem_id=elem_id)
+    if 'gradio.templates' in getattr(path, "__module__", ""):
+        button.click(fn=lambda p: open_folder(p), inputs=[path], outputs=[])
+    else:
+        button.click(fn=lambda: open_folder(path), inputs=[], outputs=[])
+    return button
+
 def get_videos_list():
     return list(v.name for v in videos_path.iterdir() if v.suffix in [".mp4"])
 
@@ -70,6 +78,7 @@ def on_ui_tabs():
                 with gr.Row():
                     video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract frames from:")
                     create_refresh_button(video_dropdown, lambda: None, lambda: {"choices": get_videos_list()}, "refresh_videos_list")
+                    create_open_folder_button(videos_path, "open_folder_videos")
                 only_keyframes_checkbox = gr.Checkbox(value=True, label="Only extract keyframes (recommended)")
                 extract_keyframes_button = gr.Button(value="Extract Keyframes", variant="primary")
                 log_output = gr.HTML(value="")
@@ -77,12 +86,13 @@ def on_ui_tabs():
                 with gr.Row():
                     frameset_dropdown = gr.Dropdown(choices=framesets_list, elem_id="frameset_dropdown", label="Extracted Frame Set", interactive=True)
                     create_refresh_button(frameset_dropdown, lambda: None, lambda: {"choices": get_framesets_list()}, "refresh_framesets_list")
+                    create_open_folder_button(framesets_path, "open_folder_framesets")
                 with gr.Row():
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
                     gr.Column()
                 with gr.Row():
                     output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
-                    open_folder_button = gr.Button(folder_symbol, elem_id="open_crops_folder_button")
+                    create_open_folder_button(output_dir, "open_folder_crops")
         with gr.Row():
             with gr.Column():
                     with gr.Row():
@@ -182,8 +192,6 @@ def on_ui_tabs():
             cropped.save(filename)
             return gr.Image.update(value=cropped), f"Saved to {filename}"
         crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir], outputs=[crop_preview, log_output])
-
-        open_folder_button.click(fn=lambda dir: open_folder(dir), inputs=[output_dir], outputs=[])
 
     return (training_picker, "Training Picker", "training_picker"),
 

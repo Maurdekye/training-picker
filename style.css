@@ -23,7 +23,10 @@
     float: right
 }
 
-[id^=refresh_], #open_crops_folder_button {    
+[id^=refresh_], [id^=open_folder_] {    
+    display: flex;
+    align-content: center;
+    justify-content: center;
     max-width: 2.5em;
     min-width: 2.5em;
     height: 2.4em;
