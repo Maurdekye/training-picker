@@ -2,8 +2,7 @@ from code import interact
 import os
 import sys
 import gradio as gr
-import modules.extras
-import modules.ui
+from modules.ui import create_refresh_button
 from modules.shared import opts, cmd_opts
 from modules import shared, scripts, paths, script_callbacks
 from pathlib import Path
@@ -43,12 +42,16 @@ def on_ui_tabs():
         # structure
         with gr.Row():
             with gr.Column():
-                video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract frames from:")
+                with gr.Row():
+                    video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract frames from:")
+                    create_refresh_button(video_dropdown, lambda: None, lambda: {"choices": get_videos_list()}, "refresh_videos_list")
                 only_keyframes_checkbox = gr.Checkbox(value=True, label="Only extract keyframes (recommended)")
                 extract_keyframes_button = gr.Button(value="Extract Keyframes", variant="primary")
                 log_output = gr.HTML(value="")
             with gr.Column():
-                frameset_dropdown = gr.Dropdown(choices=framesets_list, elem_id="frameset_dropdown", label="Extracted Frame Set", interactive=True)
+                with gr.Row():
+                    frameset_dropdown = gr.Dropdown(choices=framesets_list, elem_id="frameset_dropdown", label="Extracted Frame Set", interactive=True)
+                    create_refresh_button(frameset_dropdown, lambda: None, lambda: {"choices": get_framesets_list()}, "refresh_framesets_list")
                 with gr.Row():
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
                     gr.Column()
