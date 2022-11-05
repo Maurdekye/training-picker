@@ -119,6 +119,9 @@ def on_ui_tabs():
                 print(f"Extracting frames from {video_file}")
                 full_path = videos_path / video_file
                 output_path = framesets_path / Path(video_file).stem
+                if output_path.is_dir():
+                    print("Directory already exists!")
+                    return gr.update(), f"Frame set already exists at {output_path}! Delete the folder first if you would like to recreate it."
                 os.makedirs(output_path, exist_ok=True)
                 if only_keyframes:
                     stream = ffmpeg.input(
@@ -134,13 +137,16 @@ def on_ui_tabs():
                 return gr.Dropdown.update(choices=get_framesets_list()), f"Successfully created frame set {output_path.name}"
             except Exception as e:
                 print(f"Exception encountered while attempting to extract frames: {e}")
-                return None, f"Error: {e}"
+                return gr.update(), f"Error: {e}"
         extract_keyframes_button.click(fn=extract_keyframes_button_click, inputs=[video_dropdown, only_keyframes_checkbox], outputs=[frameset_dropdown, log_output])
 
         def get_image_update():
             global current_frame_set_index
             global current_frame_set
             return gr.Image.update(value=Image.open(current_frame_set[current_frame_set_index])), current_frame_set_index+1, f"/{len(current_frame_set)}"
+
+        def null_image_update():
+            return gr.update(), 0, ""
 
         def frameset_dropdown_change(frameset):
             global current_frame_set_index
@@ -154,25 +160,28 @@ def on_ui_tabs():
         def prev_button_click():
             global current_frame_set_index
             global current_frame_set
-            if current_frame_set != None:
+            if current_frame_set != []:
                 current_frame_set_index = (current_frame_set_index - 1) % len(current_frame_set)
                 return get_image_update()
+            return null_image_update()
         prev_button.click(fn=prev_button_click, inputs=[], outputs=[frame_browser, frame_number, frame_max])
 
         def next_button_click():
             global current_frame_set_index
             global current_frame_set
-            if current_frame_set != None:
+            if current_frame_set != []:
                 current_frame_set_index = (current_frame_set_index + 1) % len(current_frame_set)
                 return get_image_update()
+            return null_image_update()
         next_button.click(fn=next_button_click, inputs=[], outputs=[frame_browser, frame_number, frame_max])
 
         def frame_number_change(frame_number):
             global current_frame_set_index
             global current_frame_set
-            if current_frame_set != None:
+            if current_frame_set != []:
                 current_frame_set_index = int(min(max(0, frame_number - 1), len(current_frame_set) - 1))
                 return get_image_update()
+            return null_image_update()
         frame_number.change(fn=frame_number_change, inputs=[frame_number], outputs=[frame_browser, frame_number, frame_max])
 
         def crop_button_click(raw_params, frame_browser, should_resize, output_dir):
