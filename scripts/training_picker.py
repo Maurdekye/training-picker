@@ -1,20 +1,21 @@
-from code import interact
-import os
-import sys
-import gradio as gr
-from modules.ui import create_refresh_button
-from modules.shared import opts, cmd_opts
-from modules import shared, scripts, paths, script_callbacks
-from pathlib import Path
-from PIL import Image
+import subprocess
+import platform
 import json
+import sys
+import os
 import re
+from pathlib import Path
+
+import gradio as gr
+from PIL import Image
+
+from modules.ui import create_refresh_button, folder_symbol
+from modules import shared, paths, script_callbacks
 
 try:
     import ffmpeg
 except ModuleNotFoundError:
     print("Installing ffmpeg-python")
-    import subprocess
     subprocess.check_call([sys.executable, "-m", "pip", "install", "ffmpeg-python"])
     import ffmpeg
 
@@ -27,6 +28,30 @@ current_frame_set_index = 0
 
 for p in [videos_path, framesets_path]:
     os.makedirs(p, exist_ok=True)
+
+# copied directly from ui.py
+# if it were not defined inside another function, i would import it instead
+def open_folder(f):
+    if not os.path.exists(f):
+        print(f'Folder "{f}" does not exist. After you create an image, the folder will be created.')
+        return
+    elif not os.path.isdir(f):
+        print(f"""
+WARNING
+An open_folder request was made with an argument that is not a folder.
+This could be an error or a malicious attempt to run code on your computer.
+Requested path was: {f}
+""", file=sys.stderr)
+        return
+
+    if not shared.cmd_opts.hide_ui_dir_config:
+        path = os.path.normpath(f)
+        if platform.system() == "Windows":
+            os.startfile(path)
+        elif platform.system() == "Darwin":
+            subprocess.Popen(["open", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
 
 def get_videos_list():
     return list(v.name for v in videos_path.iterdir() if v.suffix in [".mp4"])
@@ -55,7 +80,9 @@ def on_ui_tabs():
                 with gr.Row():
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
                     gr.Column()
-                output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
+                with gr.Row():
+                    output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
+                    open_folder_button = gr.Button(folder_symbol, elem_id="open_crops_folder_button")
         with gr.Row():
             with gr.Column():
                     with gr.Row():
@@ -78,22 +105,26 @@ def on_ui_tabs():
 
         # events
         def extract_keyframes_button_click(video_file, only_keyframes):
-            print(f"Extracting frames from {video_file}")
-            full_path = videos_path / video_file
-            output_path = framesets_path / Path(video_file).stem
-            os.makedirs(output_path, exist_ok=True)
-            if only_keyframes:
-                stream = ffmpeg.input(
-                    str(full_path),
-                    skip_frame="nokey",
-                    vsync="vfr")
-            else:
-                stream = ffmpeg.input(
-                    str(full_path)
-                )
-            stream.output(str((output_path / "%02d.png").resolve())).run()
-            print("Extraction complete!")
-            return gr.Dropdown.update(choices=get_framesets_list()), f"Successfully created frame set {output_path.name}"
+            try:
+                print(f"Extracting frames from {video_file}")
+                full_path = videos_path / video_file
+                output_path = framesets_path / Path(video_file).stem
+                os.makedirs(output_path, exist_ok=True)
+                if only_keyframes:
+                    stream = ffmpeg.input(
+                        str(full_path),
+                        skip_frame="nokey",
+                        vsync="vfr")
+                else:
+                    stream = ffmpeg.input(
+                        str(full_path)
+                    )
+                stream.output(str((output_path / "%02d.png").resolve())).run()
+                print("Extraction complete!")
+                return gr.Dropdown.update(choices=get_framesets_list()), f"Successfully created frame set {output_path.name}"
+            except Exception as e:
+                print(f"Exception encountered while attempting to extract frames: {e}")
+                return None, f"Error: {e}"
         extract_keyframes_button.click(fn=extract_keyframes_button_click, inputs=[video_dropdown, only_keyframes_checkbox], outputs=[frameset_dropdown, log_output])
 
         def get_image_update():
@@ -151,6 +182,8 @@ def on_ui_tabs():
             cropped.save(filename)
             return gr.Image.update(value=cropped), f"Saved to {filename}"
         crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir], outputs=[crop_preview, log_output])
+
+        open_folder_button.click(fn=lambda dir: open_folder(dir), inputs=[output_dir], outputs=[])
 
     return (training_picker, "Training Picker", "training_picker"),
 

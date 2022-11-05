@@ -23,7 +23,7 @@
     float: right
 }
 
-[id^=refresh_] {    
+[id^=refresh_], #open_crops_folder_button {    
     max-width: 2.5em;
     min-width: 2.5em;
     height: 2.4em;
