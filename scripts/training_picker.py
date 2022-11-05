@@ -80,7 +80,7 @@ def on_ui_tabs():
                     create_refresh_button(video_dropdown, lambda: None, lambda: {"choices": get_videos_list()}, "refresh_videos_list")
                     create_open_folder_button(videos_path, "open_folder_videos")
                 only_keyframes_checkbox = gr.Checkbox(value=True, label="Only extract keyframes (recommended)")
-                extract_keyframes_button = gr.Button(value="Extract Keyframes", variant="primary")
+                extract_frames_button = gr.Button(value="Extract Frames", variant="primary")
                 log_output = gr.HTML(value="")
             with gr.Column():
                 with gr.Row():
@@ -114,7 +114,7 @@ def on_ui_tabs():
         crop_parameters = gr.Text(elem_id="crop_parameters", visible=False)
 
         # events
-        def extract_keyframes_button_click(video_file, only_keyframes):
+        def extract_frames_button_click(video_file, only_keyframes):
             try:
                 print(f"Extracting frames from {video_file}")
                 full_path = videos_path / video_file
@@ -138,7 +138,7 @@ def on_ui_tabs():
             except Exception as e:
                 print(f"Exception encountered while attempting to extract frames: {e}")
                 return gr.update(), f"Error: {e}"
-        extract_keyframes_button.click(fn=extract_keyframes_button_click, inputs=[video_dropdown, only_keyframes_checkbox], outputs=[frameset_dropdown, log_output])
+        extract_frames_button.click(fn=extract_frames_button_click, inputs=[video_dropdown, only_keyframes_checkbox], outputs=[frameset_dropdown, log_output])
 
         def get_image_update():
             global current_frame_set_index
