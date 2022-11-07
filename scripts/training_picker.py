@@ -8,7 +8,7 @@ from pathlib import Path
 
 import gradio as gr
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from modules.ui import create_refresh_button, folder_symbol
 from modules import shared, paths, script_callbacks
@@ -138,8 +138,12 @@ def reflect(im, **kwargs):
     return Image.fromarray(arr)
 
 def blur(im, **kwargs):
-    im.paste((255,255,255), [0,0] + list(im.size))
-    return im
+    dim = max(*im.size)
+    w, h = im.size
+    background = im.resize((dim, dim))
+    background = background.filter(ImageFilter.GaussianBlur(kwargs['blur']))
+    background.paste(im, (dim // 2 - w // 2, dim // 2 - h // 2))
+    return background
 
 outfill_methods = {
     "Don't outfill": no_outfill,
@@ -179,7 +183,7 @@ def on_ui_tabs():
                     outfill_setting = gr.Dropdown(choices=list(outfill_methods.keys()), value="Don't outfill", label="Outfill method:", interactive=True)
                 with gr.Row(visible=False) as outfill_setting_options:
                     outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
-                    outfill_border_blur = gr.Slider(value=0, min=0, max=1, step=0.01, label="Blur amount:", visible=False, interactive=True)
+                    outfill_border_blur = gr.Slider(value=0, min=0, max=20, step=0.01, label="Blur amount:", visible=False, interactive=True)
                     outfill_n_clusters = gr.Slider(value=5, min=1, max=50, step=1, label="Number of clusters:", visible=False, interactive=True)
                 with gr.Row():
                     output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
