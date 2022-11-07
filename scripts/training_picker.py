@@ -8,6 +8,7 @@ from pathlib import Path
 
 import gradio as gr
 import numpy as np
+from tqdm import tqdm
 from PIL import Image, ImageFilter
 
 from modules.ui import create_refresh_button, folder_symbol
@@ -179,8 +180,10 @@ def on_ui_tabs():
                     create_open_folder_button(framesets_path, "open_folder_framesets")
                 with gr.Row():
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
-                    reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
                     outfill_setting = gr.Dropdown(choices=list(outfill_methods.keys()), value="Don't outfill", label="Outfill method:", interactive=True)
+                    with gr.Row():
+                        reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
+                        bulk_process_button = gr.Button(value="Bulk process frames with chosen outfill method")
                 with gr.Row(visible=False) as outfill_setting_options:
                     outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
                     outfill_border_blur = gr.Slider(value=0, min=0, max=20, step=0.01, label="Blur amount:", visible=False, interactive=True)
@@ -281,15 +284,18 @@ def on_ui_tabs():
             return null_image_update()
         frame_number.change(fn=frame_number_change, inputs=[frame_number], outputs=[frame_browser, frame_number, frame_max])
 
+        def process_image(image, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
+            if should_resize:
+                w, h = image.size
+                ratio = 512 / max(w, h)
+                image = image.resize((int(w / ratio), int(h / ratio)))
+            return outfill_methods[outfill_setting](image, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters)
+
         def crop_button_click(raw_params, frame_browser, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
             params = json.loads(raw_params)
             im = Image.fromarray(frame_browser)
             cropped = im.crop((params['x1'], params['y1'], params['x2'], params['y2']))
-            if should_resize:
-                w, h = cropped.size
-                ratio = 512 / max(w, h)
-                cropped = cropped.resize((int(w / ratio), int(h / ratio)))
-            cropped = outfill_methods[outfill_setting](cropped, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters)
+            cropped = process_image(cropped, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters)
             save_path = Path(output_dir)
             os.makedirs(str(save_path.resolve()), exist_ok=True)
             current_images = [r for r in (re.match(r"(\d+).png", f.name) for f in save_path.iterdir()) if r]
@@ -301,6 +307,17 @@ def on_ui_tabs():
             cropped.save(filename)
             return gr.Image.update(value=cropped), f"Saved to {filename}"
         crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters], outputs=[crop_preview, log_output])
+
+        def bulk_process_button_click(frameset, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
+            for frame in tqdm((framesets_path / frameset).iterdir()):
+                if frame.suffix == ".png":
+                    with Image.open(frame) as img:
+                        img = process_image(img, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters)
+                        save_path = Path(output_dir)
+                        os.makedirs(str(save_path.resolve()), exist_ok=True)
+                        img.save(Path(output_dir) / frame.name)
+            return f'Processed images saved to "{output_dir}"!'
+        bulk_process_button.click(fn=bulk_process_button_click, inputs=[frameset_dropdown, resize_checkbox, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters], outputs=[log_output])
 
         def outfill_setting_change(outfill_setting): 
             outfill_outputs = [
