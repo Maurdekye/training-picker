@@ -254,6 +254,8 @@ def on_ui_tabs():
             current_frame_set_index = 0
             full_path = framesets_path / frameset
             current_frame_set = [impath for impath in full_path.iterdir() if impath.suffix == ".png"]
+            try: current_frame_set = sorted(current_frame_set, key=lambda f:int(re.match(r"^(\d+).*", f.name).group(1)))
+            except: pass
             return get_image_update()
         frameset_dropdown.change(fn=frameset_dropdown_change, inputs=[frameset_dropdown], outputs=[frame_browser, frame_number, frame_max])
 
