@@ -24,6 +24,16 @@ current_frame_set_index = 0
 for p in [videos_path, framesets_path]:
     os.makedirs(p, exist_ok=True)
 
+class CachedImage:
+    def __init__(self, path):
+        self.path = path
+        self.image = None
+
+    def get(self):
+        if self.image == None:
+            self.image = Image.open(self.path)
+        return self.image
+
 # copied directly from ui.py
 # if it were not defined inside another function, i would import it instead
 def open_folder(f):
@@ -186,7 +196,7 @@ def on_ui_tabs():
                         bulk_process_button = gr.Button(value="Bulk process frames with chosen outfill method")
                 with gr.Row(visible=False) as outfill_setting_options:
                     outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
-                    outfill_border_blur = gr.Slider(value=0, min=0, max=20, step=0.01, label="Blur amount:", visible=False, interactive=True)
+                    outfill_border_blur = gr.Slider(value=0, min=0, max=100, step=0.01, label="Blur amount:", visible=False, interactive=True)
                     outfill_n_clusters = gr.Slider(value=5, min=1, max=50, step=1, label="Number of clusters:", visible=False, interactive=True)
                 with gr.Row():
                     output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
@@ -243,7 +253,7 @@ def on_ui_tabs():
         def get_image_update():
             global current_frame_set_index
             global current_frame_set
-            return gr.Image.update(value=Image.open(current_frame_set[current_frame_set_index])), current_frame_set_index+1, f"/{len(current_frame_set)}"
+            return gr.Image.update(value=current_frame_set[current_frame_set_index].get()), current_frame_set_index+1, f"/{len(current_frame_set)}"
 
         def null_image_update():
             return gr.update(), 0, ""
@@ -253,7 +263,7 @@ def on_ui_tabs():
             global current_frame_set
             current_frame_set_index = 0
             full_path = framesets_path / frameset
-            current_frame_set = [impath for impath in full_path.iterdir() if impath.suffix == ".png"]
+            current_frame_set = [CachedImage(impath) for impath in full_path.iterdir() if impath.suffix in [".png", ".jpg"]]
             try: current_frame_set = sorted(current_frame_set, key=lambda f:int(re.match(r"^(\d+).*", f.name).group(1)))
             except: pass
             return get_image_update()
@@ -312,7 +322,7 @@ def on_ui_tabs():
 
         def bulk_process_button_click(frameset, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
             for frame in tqdm((framesets_path / frameset).iterdir()):
-                if frame.suffix == ".png":
+                if frame.suffix in [".png", ".jpg"]:
                     with Image.open(frame) as img:
                         img = process_image(img, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters)
                         save_path = Path(output_dir)

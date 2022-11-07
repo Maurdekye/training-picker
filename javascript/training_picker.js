@@ -70,6 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 let img = gradioApp().querySelector("#frame_browser img");
                 let bound = img.getBoundingClientRect();
                 let x = e.deltaY/100;
+                if (e.shiftKey) x /= 8;
                 if (e.ctrlKey) {
                     aspectRatio -= x * 0.05;
                     aspectRatio = Math.max(-2, Math.min(aspectRatio, 2))

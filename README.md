@@ -21,4 +21,5 @@ Adds a tab to the webui that allows the user to automatically extract keyframes 
 7. Scroll up and down to increase or decrease the size of the crop, and click to save a crop at the mouse cursor position
 8. Navigate between frames in the collection by clicking the navigation buttons, or with the arrow keys / AD
 9. Ctrl+scroll to adjust the aspect ratio of the crop, and middle-click to reset the aspect ratio to 1:1
-9. Crops will be saved to `training-picker/cropped-frames` by default
+    * Shift+scroll to adjust by smaller increments
+10. Crops will be saved to `training-picker/cropped-frames` by default
