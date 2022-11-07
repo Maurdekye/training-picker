@@ -106,11 +106,36 @@ def dominant(im, **kwargs):
     return resized_background(im, tuple(int(x) for x in color))
 
 def border_stretch(im, **kwargs):
-    im = resized_background(im, (0,0,0,0))
+    w, h = im.size
+    arr = np.asarray(im)
+    n = abs(w - h) // 2
+    if w > h:
+        arr = np.repeat(arr, [n] + [1]*(h-1), axis=0)
+        arr = np.repeat(arr, [1]*(h+n-2) + [n], axis=0)
+    else:
+        arr = np.repeat(arr, [n] + [1]*(w-1), axis=1)
+        arr = np.repeat(arr, [1]*(w+n-2) + [n], axis=1)
+    return Image.fromarray(arr)
 
 def reflect(im, **kwargs):
-    im.paste((0,255,255), [0,0] + list(im.size))
-    return im
+    w, h = im.size
+    arr = np.asarray(im)
+    base = arr.copy()
+    if w > h:
+        while arr.shape[0] < arr.shape[1]:
+            arr = np.concatenate((arr, base[::-1,:]))
+            arr = np.concatenate((base[::-1,:], arr))
+            base = base[::-1,:]
+        n = abs(arr.shape[0] - arr.shape[1]) // 2
+        arr = arr[n:-n, :]
+    else:
+        while arr.shape[1] < arr.shape[0]:
+            arr = np.concatenate((arr, base[:,::-1]), axis=1)
+            arr = np.concatenate((base[:,::-1], arr), axis=1)
+            base = base[:,::-1]
+        n = abs(arr.shape[0] - arr.shape[1]) // 2
+        arr = arr[:, n:-n]
+    return Image.fromarray(arr)
 
 def blur(im, **kwargs):
     im.paste((255,255,255), [0,0] + list(im.size))
@@ -286,10 +311,6 @@ def on_ui_tabs():
                     "outfill_color"
                 ],
                 "Blurred & stretched overlay" : [
-                    "outfill_setting_options",
-                    "outfill_border_blur"
-                ],
-                "Stretch pixels at border": [
                     "outfill_setting_options",
                     "outfill_border_blur"
                 ],
