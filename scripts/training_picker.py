@@ -178,7 +178,7 @@ def on_ui_tabs():
                     frameset_dropdown = gr.Dropdown(choices=framesets_list, elem_id="frameset_dropdown", label="Extracted Frame Set", interactive=True)
                     create_refresh_button(frameset_dropdown, lambda: None, lambda: {"choices": get_framesets_list()}, "refresh_framesets_list")
                     create_open_folder_button(framesets_path, "open_folder_framesets")
-                with gr.Row():
+                with gr.Row(elem_id="crop_options_row"):
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
                     outfill_setting = gr.Dropdown(choices=list(outfill_methods.keys()), value="Don't outfill", label="Outfill method:", interactive=True)
                     with gr.Row():
