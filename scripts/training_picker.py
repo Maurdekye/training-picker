@@ -23,6 +23,17 @@ picker_path = Path(paths.script_path) / "training-picker"
 videos_path = picker_path / "videos"
 framesets_path = picker_path / "extracted-frames"
 
+outfill_options = [
+    "Don't outfill",
+    "Stretch image",
+    "Transparent",
+    "Solid color",
+    "Median image color",
+    "Stretch pixels at border",
+    "Reflect image around border",
+    "Blurred & stretched overlay"
+]
+
 current_frame_set = []
 current_frame_set_index = 0
 
@@ -89,25 +100,24 @@ def on_ui_tabs():
                     create_open_folder_button(framesets_path, "open_folder_framesets")
                 with gr.Row():
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
-                    gr.Column()
+                    outfill_setting = gr.Dropdown(choices=outfill_options, value="Don't outfill", label="Outfill method:", interactive=True)
+                with gr.Row(visible=False) as outfill_setting_options:
+                    outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
+                    outfill_border_blur = gr.Slider(value=1, min=0, max=100, label="Blur amount:", visible=False, interactive=True)
                 with gr.Row():
                     output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
                     create_open_folder_button(output_dir, "open_folder_crops")
         with gr.Row():
             with gr.Column():
-                    with gr.Row():
-                        gr.Column()
-                        with gr.Column(scale=2):
-                            crop_preview = gr.Image(interactive=False, elem_id="crop_preveiw", show_label=False)
-                        gr.Column()
+                crop_preview = gr.Image(interactive=False, elem_id="crop_preview", show_label=False)
             with gr.Column():
-                    frame_browser = gr.Image(interactive=False, elem_id="frame_browser", show_label=False)
+                frame_browser = gr.Image(interactive=False, elem_id="frame_browser", show_label=False)
+                with gr.Row():
+                    prev_button = gr.Button(value="<", elem_id="prev_button")
                     with gr.Row():
-                        prev_button = gr.Button(value="<", elem_id="prev_button")
-                        with gr.Row():
-                            frame_number = gr.Number(value=0, elem_id="frame_number", live=True, show_label=False)
-                            frame_max = gr.HTML(value="", elem_id="frame_max")
-                        next_button = gr.Button(value=">", elem_id="next_button")
+                        frame_number = gr.Number(value=0, elem_id="frame_number", live=True, show_label=False)
+                        frame_max = gr.HTML(value="", elem_id="frame_max")
+                    next_button = gr.Button(value=">", elem_id="next_button")
         
         # invisible elements
         crop_button = gr.Button(elem_id="crop_button", visible=False)
@@ -189,7 +199,9 @@ def on_ui_tabs():
             im = Image.fromarray(frame_browser)
             cropped = im.crop((params['x1'], params['y1'], params['x2'], params['y2']))
             if should_resize:
-                cropped = cropped.resize((512, 512))
+                w, h = cropped.size
+                ratio = 512 / max(w, h)
+                cropped = cropped.resize((int(w / ratio), int(h / ratio)))
             save_path = Path(output_dir)
             os.makedirs(str(save_path.resolve()), exist_ok=True)
             current_images = [r for r in (re.match(r"(\d+).png", f.name) for f in save_path.iterdir()) if r]
@@ -201,6 +213,26 @@ def on_ui_tabs():
             cropped.save(filename)
             return gr.Image.update(value=cropped), f"Saved to {filename}"
         crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir], outputs=[crop_preview, log_output])
+
+       
+        def outfill_setting_change(outfill_setting): 
+            outfill_outputs = [
+                "outfill_setting_options",
+                "outfill_color",
+                "outfill_border_blur"
+            ]
+            visibility_pairs = {
+                "Solid color": [
+                    "outfill_setting_options",
+                    "outfill_color"
+                ],
+                "Blurred & stretched overlay" : [
+                    "outfill_setting_options",
+                    "outfill_border_blur"
+                ]
+            }
+            return [gr.update(visible=(outfill_setting in visibility_pairs and o in visibility_pairs[outfill_setting])) for o in outfill_outputs]
+        outfill_setting.change(fn=outfill_setting_change, inputs=[outfill_setting], outputs=[outfill_setting_options, outfill_color, outfill_border_blur])
 
     return (training_picker, "Training Picker", "training_picker"),
 

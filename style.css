@@ -9,6 +9,10 @@
     display:none
 }
 
+#crop_preview {
+    max-height: 400px;
+}
+
 #crop_parameters {
     display: none;
 }
