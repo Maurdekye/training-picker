@@ -1,50 +1,54 @@
+const intervalStep = 8;
+
+let centerSize = 512;
+let aspectRatio = 0;
+let mouseOn = false;
+let mXPos = 0;
+let mYPos = 0;
+let xPos = 0;
+let yPos = 0;
+
+function cropPreviewRect() {
+    var cropPreviewRect = gradioApp().querySelector("#cropPreviewRect");
+    if (!cropPreviewRect) {
+        cropPreviewRect = document.createElement("div");
+        cropPreviewRect.id = "cropPreviewRect";
+        gradioApp().getRootNode().appendChild(cropPreviewRect);
+    }
+    return cropPreviewRect;
+}
+
+function getBrushDim() {
+    let img = gradioApp().querySelector("#frame_browser img");
+    let bound = img.getBoundingClientRect();
+    let ar = Math.exp(aspectRatio);
+    let brushW = centerSize / ar;
+    let brushH = centerSize * ar;
+    brushW = Math.min(Math.max(intervalStep, brushW), bound.width);
+    brushH = Math.min(Math.max(intervalStep, brushH), bound.height);
+    return [brushW, brushH];
+}
+
+function updateCpr() {
+    let img = gradioApp().querySelector("#frame_browser img");
+    let bound = img.getBoundingClientRect();
+    let [brushW, brushH] = getBrushDim();
+    xPos = Math.min(Math.max(bound.left + brushW / 2 + window.scrollX, mXPos), bound.right - brushW / 2 + window.scrollX);
+    yPos = Math.min(Math.max(bound.top + brushH / 2 + window.scrollY, mYPos), bound.bottom - brushH / 2 + window.scrollY);
+    let cpr = cropPreviewRect();
+    cpr.style.width = brushW + "px";
+    cpr.style.height = brushH + "px";
+    cpr.style.left = (xPos - brushW / 2) + "px";
+    cpr.style.top = (yPos - brushH / 2) + "px";
+    cpr.style.display = mouseOn ? 'block' : 'none';
+}
+
+function resetAspectRatio() {
+    aspectRatio = 0;
+    updateCpr();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-
-    const intervalStep = 8;
-
-    let centerSize = 512;
-    let aspectRatio = 0;
-    let mouseOn = false;
-    let mXPos = 0;
-    let mYPos = 0;
-    let xPos = 0;
-    let yPos = 0;
-
-    function cropPreviewRect() {
-        var cropPreviewRect = gradioApp().querySelector("#cropPreviewRect");
-        if (!cropPreviewRect) {
-            cropPreviewRect = document.createElement("div");
-            cropPreviewRect.id = "cropPreviewRect";
-            gradioApp().getRootNode().appendChild(cropPreviewRect);
-        }
-        return cropPreviewRect;
-    }
-
-    function getBrushDim() {
-        let img = gradioApp().querySelector("#frame_browser img");
-        let bound = img.getBoundingClientRect();
-        let ar = Math.exp(aspectRatio);
-        let brushW = centerSize / ar;
-        let brushH = centerSize * ar;
-        brushW = Math.min(Math.max(intervalStep, brushW), bound.width);
-        brushH = Math.min(Math.max(intervalStep, brushH), bound.height);
-        return [brushW, brushH];
-    }
-
-    function updateCpr() {
-        let img = gradioApp().querySelector("#frame_browser img");
-        let bound = img.getBoundingClientRect();
-        let [brushW, brushH] = getBrushDim();
-        xPos = Math.min(Math.max(bound.left + brushW / 2 + window.scrollX, mXPos), bound.right - brushW / 2 + window.scrollX);
-        yPos = Math.min(Math.max(bound.top + brushH / 2 + window.scrollY, mYPos), bound.bottom - brushH / 2 + window.scrollY);
-        let cpr = cropPreviewRect();
-        cpr.style.width = brushW + "px";
-        cpr.style.height = brushH + "px";
-        cpr.style.left = (xPos - brushW / 2) + "px";
-        cpr.style.top = (yPos - brushH / 2) + "px";
-        cpr.style.display = mouseOn ? 'block' : 'none';
-    }
-
     (new MutationObserver(e => {
         let img = gradioApp().querySelector("#frame_browser img");
         if (img && (img.getAttribute("listeners") !== "true")) {
@@ -75,11 +79,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 updateCpr();
             });
-            img.addEventListener("click", e => {
-                if (e.button == 1) {
-                    aspectRatio = 0;
-                    updateCpr();
-                } else {
+            img.addEventListener("mousedown", e => {
+                if (e.button == 0) {
                     updateCpr();
                     let xRatio = img.naturalWidth / img.width;
                     let yRatio = img.naturalHeight / img.height;
@@ -95,6 +96,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     crop_parameters.value = JSON.stringify(cropData);
                     crop_parameters.dispatchEvent(new CustomEvent("input", {})); // necessary to notify gradio that the value has changed
                     gradioApp().querySelector("#crop_button").click();
+                } else if (e.button == 1) {
+                    resetAspectRatio();
                 }
             });
             img.setAttribute("listeners", "true");

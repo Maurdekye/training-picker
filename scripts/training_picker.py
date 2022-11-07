@@ -100,6 +100,7 @@ def on_ui_tabs():
                     create_open_folder_button(framesets_path, "open_folder_framesets")
                 with gr.Row():
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
+                    reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
                     outfill_setting = gr.Dropdown(choices=outfill_options, value="Don't outfill", label="Outfill method:", interactive=True)
                 with gr.Row(visible=False) as outfill_setting_options:
                     outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
@@ -214,7 +215,6 @@ def on_ui_tabs():
             return gr.Image.update(value=cropped), f"Saved to {filename}"
         crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir], outputs=[crop_preview, log_output])
 
-       
         def outfill_setting_change(outfill_setting): 
             outfill_outputs = [
                 "outfill_setting_options",
@@ -233,6 +233,8 @@ def on_ui_tabs():
             }
             return [gr.update(visible=(outfill_setting in visibility_pairs and o in visibility_pairs[outfill_setting])) for o in outfill_outputs]
         outfill_setting.change(fn=outfill_setting_change, inputs=[outfill_setting], outputs=[outfill_setting_options, outfill_color, outfill_border_blur])
+
+        reset_aspect_ratio_button.click(fn=None, _js="resetAspectRatio", inputs=[], outputs=[])
 
     return (training_picker, "Training Picker", "training_picker"),
 
