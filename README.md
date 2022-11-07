@@ -2,7 +2,7 @@
 
 Adds a tab to the webui that allows the user to automatically extract keyframes from video, and manually extract 512x512 crops of those frames for use in model training.
 
-![image](https://user-images.githubusercontent.com/2313721/199614791-1f573573-a2e2-4358-836d-5655825077e1.png)
+![image](https://user-images.githubusercontent.com/2313721/200236386-5fed34df-03e4-4ea6-a653-e1b60393afcd.png)
 
 ## Installation:
 
