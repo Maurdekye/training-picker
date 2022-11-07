@@ -7,32 +7,15 @@ import re
 from pathlib import Path
 
 import gradio as gr
+import numpy as np
 from PIL import Image
 
 from modules.ui import create_refresh_button, folder_symbol
 from modules import shared, paths, script_callbacks
 
-try:
-    import ffmpeg
-except ModuleNotFoundError:
-    print("Installing ffmpeg-python")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "ffmpeg-python"])
-    import ffmpeg
-
 picker_path = Path(paths.script_path) / "training-picker"
 videos_path = picker_path / "videos"
 framesets_path = picker_path / "extracted-frames"
-
-outfill_options = [
-    "Don't outfill",
-    "Stretch image",
-    "Transparent",
-    "Solid color",
-    "Median image color",
-    "Stretch pixels at border",
-    "Reflect image around border",
-    "Blurred & stretched overlay"
-]
 
 current_frame_set = []
 current_frame_set_index = 0
@@ -78,6 +61,73 @@ def get_videos_list():
 def get_framesets_list():
     return list(v.name for v in framesets_path.iterdir() if v.is_dir())
 
+def resized_background(im, color):
+    dim = max(*im.size)
+    w, h = im.size
+    background = Image.new(mode="RGBA", size=(dim, dim), color=color)
+    background.paste(im, (dim // 2 - w // 2, dim // 2 - h // 2))
+    return background
+
+# Outfill methods
+
+def no_outfill(im, **kwargs):
+    return im
+
+def stretch(im, **kwargs):
+    dim = max(*im.size)
+    return im.resize((dim, dim))
+
+def transparent(im, **kwargs):
+    return resized_background(im, (0,0,0,0))
+
+def solid(im, **kwargs):
+    return resized_background(im, kwargs['color'])
+
+def average(im, **kwargs):
+    return resized_background(im, tuple(int(x) for x in np.asarray(im).mean(axis=0).mean(axis=0)))
+
+def dominant(im, **kwargs):
+    try:
+        import cv2
+    except ModuleNotFoundError:
+        print("Installing opencv-python")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python"])
+        import cv2
+    _, labels, palette = cv2.kmeans(
+        np.float32(np.asarray(im).reshape(-1, 3)), 
+        kwargs['n_clusters'], 
+        None, 
+        (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, 0.1), 
+        10, 
+        cv2.KMEANS_RANDOM_CENTERS
+    )
+    _, counts = np.unique(labels, return_counts=True)
+    color = palette[np.argmax(counts)]
+    return resized_background(im, tuple(int(x) for x in color))
+
+def border_stretch(im, **kwargs):
+    im = resized_background(im, (0,0,0,0))
+
+def reflect(im, **kwargs):
+    im.paste((0,255,255), [0,0] + list(im.size))
+    return im
+
+def blur(im, **kwargs):
+    im.paste((255,255,255), [0,0] + list(im.size))
+    return im
+
+outfill_methods = {
+    "Don't outfill": no_outfill,
+    "Stretch image": stretch,
+    "Transparent": transparent,
+    "Solid color": solid,
+    "Average image color": average,
+    "Dominant image color": dominant,
+    "Stretch pixels at border": border_stretch,
+    "Reflect image around border": reflect,
+    "Blurred & stretched overlay": blur
+}
+
 def on_ui_tabs():
     with gr.Blocks(analytics_enabled=False) as training_picker:
         videos_list = get_videos_list()
@@ -101,10 +151,11 @@ def on_ui_tabs():
                 with gr.Row():
                     resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
                     reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
-                    outfill_setting = gr.Dropdown(choices=outfill_options, value="Don't outfill", label="Outfill method:", interactive=True)
+                    outfill_setting = gr.Dropdown(choices=list(outfill_methods.keys()), value="Don't outfill", label="Outfill method:", interactive=True)
                 with gr.Row(visible=False) as outfill_setting_options:
                     outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
-                    outfill_border_blur = gr.Slider(value=1, min=0, max=100, label="Blur amount:", visible=False, interactive=True)
+                    outfill_border_blur = gr.Slider(value=0, min=0, max=1, step=0.01, label="Blur amount:", visible=False, interactive=True)
+                    outfill_n_clusters = gr.Slider(value=5, min=1, max=50, step=1, label="Number of clusters:", visible=False, interactive=True)
                 with gr.Row():
                     output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
                     create_open_folder_button(output_dir, "open_folder_crops")
@@ -126,6 +177,12 @@ def on_ui_tabs():
 
         # events
         def extract_frames_button_click(video_file, only_keyframes):
+            try:
+                import ffmpeg
+            except ModuleNotFoundError:
+                print("Installing ffmpeg-python")
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "ffmpeg-python"])
+                import ffmpeg
             try:
                 print(f"Extracting frames from {video_file}")
                 full_path = videos_path / video_file
@@ -195,7 +252,7 @@ def on_ui_tabs():
             return null_image_update()
         frame_number.change(fn=frame_number_change, inputs=[frame_number], outputs=[frame_browser, frame_number, frame_max])
 
-        def crop_button_click(raw_params, frame_browser, should_resize, output_dir):
+        def crop_button_click(raw_params, frame_browser, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
             params = json.loads(raw_params)
             im = Image.fromarray(frame_browser)
             cropped = im.crop((params['x1'], params['y1'], params['x2'], params['y2']))
@@ -203,6 +260,7 @@ def on_ui_tabs():
                 w, h = cropped.size
                 ratio = 512 / max(w, h)
                 cropped = cropped.resize((int(w / ratio), int(h / ratio)))
+            cropped = outfill_methods[outfill_setting](cropped, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters)
             save_path = Path(output_dir)
             os.makedirs(str(save_path.resolve()), exist_ok=True)
             current_images = [r for r in (re.match(r"(\d+).png", f.name) for f in save_path.iterdir()) if r]
@@ -213,13 +271,14 @@ def on_ui_tabs():
             filename = save_path / f"{next_image_num}.png"
             cropped.save(filename)
             return gr.Image.update(value=cropped), f"Saved to {filename}"
-        crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir], outputs=[crop_preview, log_output])
+        crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters], outputs=[crop_preview, log_output])
 
         def outfill_setting_change(outfill_setting): 
             outfill_outputs = [
                 "outfill_setting_options",
                 "outfill_color",
-                "outfill_border_blur"
+                "outfill_border_blur",
+                "outfill_n_clusters"
             ]
             visibility_pairs = {
                 "Solid color": [
@@ -229,10 +288,18 @@ def on_ui_tabs():
                 "Blurred & stretched overlay" : [
                     "outfill_setting_options",
                     "outfill_border_blur"
+                ],
+                "Stretch pixels at border": [
+                    "outfill_setting_options",
+                    "outfill_border_blur"
+                ],
+                "Dominant image color": [
+                    "outfill_setting_options",
+                    "outfill_n_clusters"
                 ]
             }
             return [gr.update(visible=(outfill_setting in visibility_pairs and o in visibility_pairs[outfill_setting])) for o in outfill_outputs]
-        outfill_setting.change(fn=outfill_setting_change, inputs=[outfill_setting], outputs=[outfill_setting_options, outfill_color, outfill_border_blur])
+        outfill_setting.change(fn=outfill_setting_change, inputs=[outfill_setting], outputs=[outfill_setting_options, outfill_color, outfill_border_blur, outfill_n_clusters])
 
         reset_aspect_ratio_button.click(fn=None, _js="resetAspectRatio", inputs=[], outputs=[])
 
