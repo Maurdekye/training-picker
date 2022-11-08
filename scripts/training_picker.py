@@ -1,5 +1,6 @@
 import subprocess
 import platform
+import math
 import json
 import sys
 import os
@@ -13,17 +14,11 @@ from PIL import Image, ImageFilter
 import cv2
 
 from modules.ui import create_refresh_button, folder_symbol
+from modules.shared import opts, OptionInfo
 from modules import shared, paths, script_callbacks
-
-picker_path = Path(paths.script_path) / "training-picker"
-videos_path = picker_path / "videos"
-framesets_path = picker_path / "extracted-frames"
 
 current_frame_set = []
 current_frame_set_index = 0
-
-for p in [videos_path, framesets_path]:
-    os.makedirs(p, exist_ok=True)
 
 class CachedImage:
     def __init__(self, path):
@@ -66,12 +61,6 @@ def create_open_folder_button(path, elem_id):
     else:
         button.click(fn=lambda: open_folder(path), inputs=[], outputs=[])
     return button
-
-def get_videos_list():
-    return list(v.name for v in videos_path.iterdir() if v.suffix in [".mp4"])
-
-def get_framesets_list():
-    return list(v.name for v in framesets_path.iterdir() if v.is_dir())
 
 def resized_background(im, color):
     dim = max(*im.size)
@@ -198,6 +187,21 @@ outfill_methods = {
 }
 
 def on_ui_tabs():
+
+    fixed_size = int(opts.training_picker_fixed_size)
+    videos_path = Path(opts.training_picker_videos_path)
+    framesets_path = Path(opts.training_picker_framesets_path)
+    default_output_path = Path(opts.training_picker_default_output_path)
+
+    for p in [videos_path, framesets_path]:
+        os.makedirs(p, exist_ok=True)
+
+    def get_videos_list():
+        return list(v.name for v in videos_path.iterdir() if v.suffix in [".mp4"])
+
+    def get_framesets_list():
+        return list(v.name for v in framesets_path.iterdir() if v.is_dir())
+
     with gr.Blocks(analytics_enabled=False) as training_picker:
         videos_list = get_videos_list()
         framesets_list = get_framesets_list()
@@ -218,7 +222,7 @@ def on_ui_tabs():
                     create_refresh_button(frameset_dropdown, lambda: None, lambda: {"choices": get_framesets_list()}, "refresh_framesets_list")
                     create_open_folder_button(framesets_path, "open_folder_framesets")
                 with gr.Row(elem_id="crop_options_row"):
-                    resize_checkbox = gr.Checkbox(value=True, label="Resize crops to 512x512")
+                    resize_checkbox = gr.Checkbox(value=True, label=f"Resize crops to {fixed_size}x{fixed_size}")
                     outfill_setting = gr.Dropdown(choices=list(outfill_methods.keys()), value="Don't outfill", label="Outfill method:", interactive=True)
                     with gr.Row():
                         reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
@@ -228,7 +232,7 @@ def on_ui_tabs():
                     outfill_border_blur = gr.Slider(value=0, min=0, max=100, step=0.01, label="Blur amount:", visible=False, interactive=True)
                     outfill_n_clusters = gr.Slider(value=5, min=1, max=50, step=1, label="Number of clusters:", visible=False, interactive=True)
                 with gr.Row():
-                    output_dir = gr.Text(value=picker_path / "cropped-frames", label="Save crops to:")
+                    output_dir = gr.Text(value=default_output_path, label="Save crops to:")
                     create_open_folder_button(output_dir, "open_folder_crops")
         with gr.Row():
             with gr.Column():
@@ -326,13 +330,19 @@ def on_ui_tabs():
         frame_number.change(fn=frame_number_change, inputs=[frame_number], outputs=[frame_browser, frame_number, frame_max])
 
         def process_image(image, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters, square_original):
+            w, h = image.size
             if should_resize:
-                w, h = image.size
-                ratio = 512 / max(w, h)
-                image = image.resize((int(w * ratio), int(h * ratio)))
+                ratio = fixed_size / max(w, h)
+                image = image.resize((math.ceil(w * ratio), math.ceil(h * ratio)))
                 if square_original:
-                    square_original = square_original.resize((512, 512))
-            return outfill_methods[outfill_setting](image, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters, original=square_original)
+                    square_original = square_original.resize((fixed_size - 1, fixed_size - 1)) # i would prefer to resize to 512x512 but a sliver of unblurred image appears otherwise in the final result :/
+            if outfill_setting != "Don't outfill":
+                image = outfill_methods[outfill_setting](image, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters, original=square_original)
+                square_diameter = max(w, h)
+                if should_resize:
+                    square_diameter = fixed_size
+                image = image.resize((square_diameter, square_diameter)) # final corrective resize step to make sure the output is actually square
+            return image
 
         def get_squared_original(full_im, bounds, outfill_method):
             x1, y1, x2, y2 = bounds
@@ -416,7 +426,12 @@ def on_ui_tabs():
     return (training_picker, "Training Picker", "training_picker"),
 
 def on_ui_settings():
+    picker_path = Path(paths.script_path) / "training-picker"
     section = ('training-picker', "Training Picker")
+    opts.add_option("training_picker_fixed_size", OptionInfo(512, "Fixed size to resize images to", section=section))
+    opts.add_option("training_picker_videos_path", OptionInfo(str(picker_path / "videos"), "Path to read videos from", section=section))
+    opts.add_option("training_picker_framesets_path", OptionInfo(str(picker_path / "extracted-frames"), "Path to store extracted frame sets in", section=section))
+    opts.add_option("training_picker_default_output_path", OptionInfo(str(picker_path / "cropped-frames"), "Default cropped image output directory", section=section))
 
 script_callbacks.on_ui_settings(on_ui_settings)
 script_callbacks.on_ui_tabs(on_ui_tabs)
