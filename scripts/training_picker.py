@@ -10,6 +10,7 @@ import gradio as gr
 import numpy as np
 from tqdm import tqdm
 from PIL import Image, ImageFilter
+import cv2
 
 from modules.ui import create_refresh_button, folder_symbol
 from modules import shared, paths, script_callbacks
@@ -79,6 +80,27 @@ def resized_background(im, color):
     background.paste(im, (dim // 2 - w // 2, dim // 2 - h // 2))
     return background
 
+def gradient_blur(im, factor, original_dims):
+    w, h = original_dims
+    nw, nh = im.size
+    n = abs(w - h) // 2
+    original = im.copy()
+    if w > h:
+        for y in range(n):
+            top_sliver = (0, n - y - 1, w, n - y)
+            bottom_sliver = (0, (nh + h) // 2 + y - 1, w, (nh + h) // 2 + y)
+            blurred = original.filter(ImageFilter.GaussianBlur(factor * (y/n)))
+            im.paste(blurred.crop(top_sliver), top_sliver)
+            im.paste(blurred.crop(bottom_sliver), bottom_sliver)
+    else:
+        for x in range(n):
+            left_sliver = (n - x - 1, 0, n - x, h)
+            right_sliver = ((nw + w) // 2 + x - 1, 0, (nw + w) // 2 + x, h)
+            blurred = original.filter(ImageFilter.GaussianBlur(factor * (x/n)))
+            im.paste(blurred.crop(left_sliver), left_sliver)
+            im.paste(blurred.crop(right_sliver), right_sliver)
+    return im
+
 # Outfill methods
 
 def no_outfill(im, **kwargs):
@@ -98,12 +120,6 @@ def average(im, **kwargs):
     return resized_background(im, tuple(int(x) for x in np.asarray(im).mean(axis=0).mean(axis=0)))
 
 def dominant(im, **kwargs):
-    try:
-        import cv2
-    except ModuleNotFoundError:
-        print("Installing opencv-python")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python"])
-        import cv2
     _, labels, palette = cv2.kmeans(
         np.float32(np.asarray(im).reshape(-1, 3)), 
         kwargs['n_clusters'], 
@@ -126,7 +142,10 @@ def border_stretch(im, **kwargs):
     else:
         arr = np.repeat(arr, [n] + [1]*(w-1), axis=1)
         arr = np.repeat(arr, [1]*(w+n-2) + [n], axis=1)
-    return Image.fromarray(arr)
+    final = Image.fromarray(arr)
+    if kwargs['blur'] > 0:
+        final = gradient_blur(final, kwargs['blur'], (w, h))
+    return final
 
 def reflect(im, **kwargs):
     w, h = im.size
@@ -146,7 +165,10 @@ def reflect(im, **kwargs):
             base = base[:,::-1]
         n = abs(arr.shape[0] - arr.shape[1]) // 2
         arr = arr[:, n:-n]
-    return Image.fromarray(arr)
+    final = Image.fromarray(arr)
+    if kwargs['blur'] > 0:
+        final = gradient_blur(final, kwargs['blur'], (w, h))
+    return final
 
 def blur(im, **kwargs):
     dim = max(*im.size)
@@ -155,6 +177,12 @@ def blur(im, **kwargs):
     background = background.filter(ImageFilter.GaussianBlur(kwargs['blur']))
     background.paste(im, (dim // 2 - w // 2, dim // 2 - h // 2))
     return background
+
+def keep_original(im, **kwargs):
+    final = kwargs['original']
+    if kwargs['blur'] > 0:
+        final = gradient_blur(final, kwargs['blur'], im.size)
+    return final
 
 outfill_methods = {
     "Don't outfill": no_outfill,
@@ -165,7 +193,8 @@ outfill_methods = {
     "Dominant image color": dominant,
     "Stretch pixels at border": border_stretch,
     "Reflect image around border": reflect,
-    "Blurred & stretched overlay": blur
+    "Blurred & stretched overlay": blur,
+    "Reuse original image": keep_original
 }
 
 def on_ui_tabs():
@@ -264,8 +293,8 @@ def on_ui_tabs():
             current_frame_set_index = 0
             full_path = framesets_path / frameset
             current_frame_set = [CachedImage(impath) for impath in full_path.iterdir() if impath.suffix in [".png", ".jpg"]]
-            try: current_frame_set = sorted(current_frame_set, key=lambda f:int(re.match(r"^(\d+).*", f.name).group(1)))
-            except: pass
+            try: current_frame_set = sorted(current_frame_set, key=lambda f:int(re.match(r"^(\d+).*", f.path.name).group(1)))
+            except Exception as e: print(f"Unable to sort frames: {e}")
             return get_image_update()
         frameset_dropdown.change(fn=frameset_dropdown_change, inputs=[frameset_dropdown], outputs=[frame_browser, frame_number, frame_max])
 
@@ -296,18 +325,33 @@ def on_ui_tabs():
             return null_image_update()
         frame_number.change(fn=frame_number_change, inputs=[frame_number], outputs=[frame_browser, frame_number, frame_max])
 
-        def process_image(image, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
+        def process_image(image, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters, square_original):
             if should_resize:
                 w, h = image.size
                 ratio = 512 / max(w, h)
-                image = image.resize((int(w / ratio), int(h / ratio)))
-            return outfill_methods[outfill_setting](image, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters)
+                image = image.resize((int(w * ratio), int(h * ratio)))
+                if square_original:
+                    square_original = square_original.resize((512, 512))
+            return outfill_methods[outfill_setting](image, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters, original=square_original)
+
+        def get_squared_original(full_im, bounds, outfill_method):
+            x1, y1, x2, y2 = bounds
+            w, h = x2 - x1, y2 - y1
+            cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+            r = max(w, h) // 2
+            new_bounds = (cx - r, cy - r, cx + r, cy + r)
+            return full_im.crop(new_bounds)
 
         def crop_button_click(raw_params, frame_browser, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
             params = json.loads(raw_params)
             im = Image.fromarray(frame_browser)
-            cropped = im.crop((params['x1'], params['y1'], params['x2'], params['y2']))
-            cropped = process_image(cropped, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters)
+            crop_boundary = (params['x1'], params['y1'], params['x2'], params['y2'])
+            cropped = im.crop(crop_boundary)
+            if outfill_setting == "Reuse original image":
+                square_original = get_squared_original(im, crop_boundary, None)
+            else:
+                square_original = None
+            cropped = process_image(cropped, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters, square_original)
             save_path = Path(output_dir)
             os.makedirs(str(save_path.resolve()), exist_ok=True)
             current_images = [r for r in (re.match(r"(\d+).png", f.name) for f in save_path.iterdir()) if r]
@@ -350,6 +394,18 @@ def on_ui_tabs():
                 "Dominant image color": [
                     "outfill_setting_options",
                     "outfill_n_clusters"
+                ],
+                "Stretch pixels at border": [
+                    "outfill_setting_options",
+                    "outfill_border_blur"
+                ],
+                "Reflect image around border": [
+                    "outfill_setting_options",
+                    "outfill_border_blur"
+                ],
+                "Reuse original image": [
+                    "outfill_setting_options",
+                    "outfill_border_blur"
                 ]
             }
             return [gr.update(visible=(outfill_setting in visibility_pairs and o in visibility_pairs[outfill_setting])) for o in outfill_outputs]
