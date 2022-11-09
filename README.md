@@ -15,7 +15,7 @@ Adds a tab to the webui that allows the user to automatically extract keyframes 
 1. Drop videos you want to extract cropped frames from into the `training-picker/videos` folder
 2. Open up the Training Picker tab of the webui
 3. Select one of the videos you placed in the `training-picker/videos` folder from the dropdown on the left
-4. Click 'Extract Keyframes`
+4. Click 'Extract Frames`
 5. After the extraction finishes, a new keyframe set for the video should be selectable in the dropdown on the right
 6. Select the keyframe set, and the frames will appear in the browser below
 7. Scroll up and down to increase or decrease the size of the crop, and click to save a crop at the mouse cursor position
