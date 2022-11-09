@@ -134,12 +134,18 @@ def border_stretch(im, **kwargs):
         axis = 1
     if axis == 0:
         n = abs(fh - h) // 2
-        arr = np.repeat(arr, [n] + [1]*(h-1), axis=0)
-        arr = np.repeat(arr, [1]*(h+n-2) + [n], axis=0)
+        o = 1
+        arr = np.repeat(arr, [n + o] + [1]*(h-1), axis=0)
+        if (fh - h) % 2 == 1:
+            o += 1
+        arr = np.repeat(arr, [1]*(h+n-1) + [n + o], axis=0)
     elif axis == 1:
         n = abs(fw - w) // 2
-        arr = np.repeat(arr, [n] + [1]*(w-1), axis=1)
-        arr = np.repeat(arr, [1]*(w+n-2) + [n], axis=1)
+        o = 1
+        arr = np.repeat(arr, [n + o] + [1]*(w-1), axis=1)
+        if (fw - w) % 2 == 1:
+            o += 1
+        arr = np.repeat(arr, [1]*(w+n-1) + [n + o], axis=1)
     final = Image.fromarray(arr)
     if kwargs['blur'] > 0:
         final = gradient_blur(final, kwargs['blur'], (w, h))
@@ -360,10 +366,6 @@ def on_ui_tabs():
                     square_original = square_original.resize((fixed_size - 1, fixed_size - 1)) # i would prefer to resize to the exact fixed size but a sliver of unblurred image appears otherwise in the final result :/
             if outfill_setting != "Don't outfill":
                 image = outfill_methods[outfill_setting](image, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters, original=square_original)
-                square_diameter = max(w, h)
-                if should_resize:
-                    square_diameter = fixed_size
-                image = image.resize((square_diameter, square_diameter)) # final corrective resize step to make sure the output is actually square (i can't design algorithms that consistently result in square images :p)
             return image
 
         def get_squared_original(full_im, bounds, outfill_method):
@@ -373,8 +375,8 @@ def on_ui_tabs():
             r = max(w, h) // 2
             iw, ih = full_im.size
             outrad = max(iw, ih)
-            dim_override = (int(outrad*2), int(outrad*2))
-            ox, oy = (0, 0) if outfill_method == "Black outfill" else (iw // 2 + (outrad - iw), ih // 2 + (outrad - ih))
+            dim_override = (int(outrad*1.5), int(outrad*1.5))
+            ox, oy = (0, 0) if outfill_method == "Black outfill" else (outrad // 4 + (outrad - iw) // 2, outrad // 4 + (outrad - ih) // 2)
             new_bounds = (cx - r + ox, cy - r + oy, cx + r + ox, cy + r + oy)
             if outfill_method == "Stretch pixels at border":
                 full_im = border_stretch(full_im, blur=0, dim_override=dim_override, axis_override=0)
