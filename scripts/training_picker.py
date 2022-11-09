@@ -246,7 +246,7 @@ def on_ui_tabs():
                         bulk_process_button = gr.Button(value="Bulk process frames with chosen outfill method")
                 with gr.Row(visible=False) as outfill_setting_options:
                     with gr.Column(scale=0.3):
-                        outfill_original_image_outfill_setting = gr.Dropdown(label="Image border outfill method:", scale=0.3, value="Black outfill", choices=["Black outfill", "Stretch pixels at border", "Reflect image around border"])
+                        outfill_original_image_outfill_setting = gr.Dropdown(label="Image border outfill method:", scale=0.3, value="Stretch pixels at border", choices=["Stretch pixels at border", "Reflect image around border", "Black outfill"])
                     outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
                     outfill_border_blur = gr.Slider(value=0, min=0, max=100, step=0.01, label="Blur amount:", visible=False, interactive=True)
                     outfill_n_clusters = gr.Slider(value=5, min=1, max=50, step=1, label="Number of clusters:", visible=False, interactive=True)
