@@ -77,14 +77,14 @@ def gradient_blur(im, factor, original_dims):
     if w > h:
         for y in range(n):
             top_sliver = (0, n - y - 1, w, n - y)
-            bottom_sliver = (0, (nh + h) // 2 + y - 1, w, (nh + h) // 2 + y)
+            bottom_sliver = (0, (nh + h) // 2 + y, w, (nh + h) // 2 + y + 1)
             blurred = original.filter(ImageFilter.GaussianBlur(factor * (y/n)))
             im.paste(blurred.crop(top_sliver), top_sliver)
             im.paste(blurred.crop(bottom_sliver), bottom_sliver)
     else:
         for x in range(n):
             left_sliver = (n - x - 1, 0, n - x, h)
-            right_sliver = ((nw + w) // 2 + x - 1, 0, (nw + w) // 2 + x, h)
+            right_sliver = ((nw + w) // 2 + x, 0, (nw + w) // 2 + x + 1, h)
             blurred = original.filter(ImageFilter.GaussianBlur(factor * (x/n)))
             im.paste(blurred.crop(left_sliver), left_sliver)
             im.paste(blurred.crop(right_sliver), right_sliver)
@@ -123,12 +123,21 @@ def dominant(im, **kwargs):
 
 def border_stretch(im, **kwargs):
     w, h = im.size
+    fw, fh = kwargs['dim_override'] if 'dim_override' in kwargs else [max(w, h)]*2
     arr = np.asarray(im)
-    n = abs(w - h) // 2
-    if w > h:
+    axis = -1
+    if 'axis_override' in kwargs:
+        axis = kwargs['axis_override']
+    elif w > h:
+        axis = 0
+    elif h > w:
+        axis = 1
+    if axis == 0:
+        n = abs(fh - h) // 2
         arr = np.repeat(arr, [n] + [1]*(h-1), axis=0)
         arr = np.repeat(arr, [1]*(h+n-2) + [n], axis=0)
-    else:
+    elif axis == 1:
+        n = abs(fw - w) // 2
         arr = np.repeat(arr, [n] + [1]*(w-1), axis=1)
         arr = np.repeat(arr, [1]*(w+n-2) + [n], axis=1)
     final = Image.fromarray(arr)
@@ -138,21 +147,29 @@ def border_stretch(im, **kwargs):
 
 def reflect(im, **kwargs):
     w, h = im.size
+    fw, fh = kwargs['dim_override'] if 'dim_override' in kwargs else [max(w, h)]*2
     arr = np.asarray(im)
     base = arr.copy()
-    if w > h:
-        while arr.shape[0] < arr.shape[1]:
+    axis = -1
+    if 'axis_override' in kwargs:
+        axis = kwargs['axis_override']
+    elif w > h:
+        axis = 0
+    elif h > w:
+        axis = 1
+    if axis == 0:
+        while arr.shape[0] < fh:
             arr = np.concatenate((arr, base[::-1,:]))
             arr = np.concatenate((base[::-1,:], arr))
             base = base[::-1,:]
-        n = abs(arr.shape[0] - arr.shape[1]) // 2
+        n = abs(arr.shape[0] - fh) // 2
         arr = arr[n:-n, :]
-    else:
-        while arr.shape[1] < arr.shape[0]:
+    elif axis == 1:
+        while arr.shape[1] < fw:
             arr = np.concatenate((arr, base[:,::-1]), axis=1)
             arr = np.concatenate((base[:,::-1], arr), axis=1)
             base = base[:,::-1]
-        n = abs(arr.shape[0] - arr.shape[1]) // 2
+        n = abs(fw - arr.shape[1]) // 2
         arr = arr[:, n:-n]
     final = Image.fromarray(arr)
     if kwargs['blur'] > 0:
@@ -228,6 +245,8 @@ def on_ui_tabs():
                         reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
                         bulk_process_button = gr.Button(value="Bulk process frames with chosen outfill method")
                 with gr.Row(visible=False) as outfill_setting_options:
+                    with gr.Column(scale=0.3):
+                        outfill_original_image_outfill_setting = gr.Dropdown(label="Image border outfill method:", scale=0.3, value="Black outfill", choices=["Black outfill", "Stretch pixels at border", "Reflect image around border"])
                     outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
                     outfill_border_blur = gr.Slider(value=0, min=0, max=100, step=0.01, label="Blur amount:", visible=False, interactive=True)
                     outfill_n_clusters = gr.Slider(value=5, min=1, max=50, step=1, label="Number of clusters:", visible=False, interactive=True)
@@ -349,16 +368,26 @@ def on_ui_tabs():
             w, h = x2 - x1, y2 - y1
             cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
             r = max(w, h) // 2
-            new_bounds = (cx - r, cy - r, cx + r, cy + r)
+            iw, ih = full_im.size
+            outrad = max(iw, ih)
+            dim_override = (int(outrad*2), int(outrad*2))
+            ox, oy = (0, 0) if outfill_method == "Black outfill" else (iw // 2 + (outrad - iw), ih // 2 + (outrad - ih))
+            new_bounds = (cx - r + ox, cy - r + oy, cx + r + ox, cy + r + oy)
+            if outfill_method == "Stretch pixels at border":
+                full_im = border_stretch(full_im, blur=0, dim_override=dim_override, axis_override=0)
+                full_im = border_stretch(full_im, blur=0, dim_override=dim_override, axis_override=1)
+            elif outfill_method == "Reflect image around border":
+                full_im = reflect(full_im, blur=0, dim_override=dim_override, axis_override=0)
+                full_im = reflect(full_im, blur=0, dim_override=dim_override, axis_override=1)
             return full_im.crop(new_bounds)
 
-        def crop_button_click(raw_params, frame_browser, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
+        def crop_button_click(raw_params, frame_browser, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters, outfill_original_image_outfill_setting):
             params = json.loads(raw_params)
             im = Image.fromarray(frame_browser)
             crop_boundary = (params['x1'], params['y1'], params['x2'], params['y2'])
             cropped = im.crop(crop_boundary)
             if outfill_setting == "Reuse original image":
-                square_original = get_squared_original(im, crop_boundary, None)
+                square_original = get_squared_original(im, crop_boundary, outfill_original_image_outfill_setting)
             else:
                 square_original = None
             cropped = process_image(cropped, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters, square_original)
@@ -372,9 +401,11 @@ def on_ui_tabs():
             filename = save_path / f"{next_image_num}.png"
             cropped.save(filename)
             return gr.Image.update(value=cropped), f"Saved to {filename}"
-        crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters], outputs=[crop_preview, log_output])
+        crop_button.click(fn=crop_button_click, inputs=[crop_parameters, frame_browser, resize_checkbox, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters, outfill_original_image_outfill_setting], outputs=[crop_preview, log_output])
 
         def bulk_process_button_click(frameset, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
+            if outfill_setting == "Reuse original image":
+                return gr.Image.update(value="https://user-images.githubusercontent.com/2313721/200725535-d2aca52a-497f-4424-a2dd-200118f5ab66.png"), "what did you expect would happen with that outfill method"
             for frame in tqdm((framesets_path / frameset).iterdir()):
                 if frame.suffix in [".png", ".jpg"]:
                     with Image.open(frame) as img:
@@ -382,15 +413,16 @@ def on_ui_tabs():
                         save_path = Path(output_dir)
                         os.makedirs(str(save_path.resolve()), exist_ok=True)
                         img.save(Path(output_dir) / frame.name)
-            return f'Processed images saved to "{output_dir}"!'
-        bulk_process_button.click(fn=bulk_process_button_click, inputs=[frameset_dropdown, resize_checkbox, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters], outputs=[log_output])
+            return gr.update(), f'Processed images saved to "{output_dir}"!'
+        bulk_process_button.click(fn=bulk_process_button_click, inputs=[frameset_dropdown, resize_checkbox, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters], outputs=[crop_preview, log_output])
 
         def outfill_setting_change(outfill_setting): 
             outfill_outputs = [
                 "outfill_setting_options",
                 "outfill_color",
                 "outfill_border_blur",
-                "outfill_n_clusters"
+                "outfill_n_clusters",
+                "outfill_original_image_outfill_setting"
             ]
             visibility_pairs = {
                 "Solid color": [
@@ -415,11 +447,12 @@ def on_ui_tabs():
                 ],
                 "Reuse original image": [
                     "outfill_setting_options",
-                    "outfill_border_blur"
+                    "outfill_border_blur",
+                    "outfill_original_image_outfill_setting"
                 ]
             }
             return [gr.update(visible=(outfill_setting in visibility_pairs and o in visibility_pairs[outfill_setting])) for o in outfill_outputs]
-        outfill_setting.change(fn=outfill_setting_change, inputs=[outfill_setting], outputs=[outfill_setting_options, outfill_color, outfill_border_blur, outfill_n_clusters])
+        outfill_setting.change(fn=outfill_setting_change, inputs=[outfill_setting], outputs=[outfill_setting_options, outfill_color, outfill_border_blur, outfill_n_clusters, outfill_original_image_outfill_setting])
 
         reset_aspect_ratio_button.click(fn=None, _js="resetAspectRatio", inputs=[], outputs=[])
 
