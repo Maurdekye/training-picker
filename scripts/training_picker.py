@@ -77,7 +77,7 @@ def gradient_blur(im, factor, original_dims):
     if w > h:
         for y in range(n):
             top_sliver = (0, n - y - 1, w, n - y)
-            bottom_sliver = (0, (nh + h) // 2 + y, w, (nh + h) // 2 + y + 1)
+            bottom_sliver = (0, (nh + h) // 2 + y + 1, w, (nh + h) // 2 + y + 2)
             blurred = original.filter(ImageFilter.GaussianBlur(factor * (y/n)))
             im.paste(blurred.crop(top_sliver), top_sliver)
             im.paste(blurred.crop(bottom_sliver), bottom_sliver)
