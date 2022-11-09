@@ -375,8 +375,8 @@ def on_ui_tabs():
             r = max(w, h) // 2
             iw, ih = full_im.size
             outrad = max(iw, ih)
-            dim_override = (int(outrad*1.5), int(outrad*1.5))
-            ox, oy = (0, 0) if outfill_method == "Black outfill" else (outrad // 4 + (outrad - iw) // 2, outrad // 4 + (outrad - ih) // 2)
+            dim_override = (int(outrad*2), int(outrad*2))
+            ox, oy = (0, 0) if outfill_method == "Black outfill" else (outrad // 2 + (outrad - iw) // 2, outrad // 2 + (outrad - ih) // 2)
             new_bounds = (cx - r + ox, cy - r + oy, cx + r + ox, cy + r + oy)
             if outfill_method == "Stretch pixels at border":
                 full_im = border_stretch(full_im, blur=0, dim_override=dim_override, axis_override=0)
