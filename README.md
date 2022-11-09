@@ -23,7 +23,7 @@ Adds a tab to the webui that allows the user to automatically extract keyframes 
 
 Optionally, you can also just supply a large collection of individual images you would like to work with directly by placing them into a folder within `training-picker/extracted-frames`.
 
-## Cropping
+### Cropping
 
 * Scroll up and down to increase or decrease the size of the crop brush
 * Ctrl+scroll to adjust the aspect ratio of the crop, and middle-click to reset the aspect ratio to 1:1
