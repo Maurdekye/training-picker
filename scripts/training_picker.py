@@ -245,11 +245,14 @@ def on_ui_tabs():
                         reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
                         bulk_process_button = gr.Button(value="Bulk process frames with chosen outfill method")
                 with gr.Row(visible=False) as outfill_setting_options:
-                    with gr.Column(scale=0.3):
+                    with gr.Column(visible=False, scale=0.3) as original_image_outfill_setting_container:
                         outfill_original_image_outfill_setting = gr.Dropdown(label="Image border outfill method:", scale=0.3, value="Stretch pixels at border", choices=["Stretch pixels at border", "Reflect image around border", "Black outfill"])
-                    outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", visible=False, interactive=True)
-                    outfill_border_blur = gr.Slider(value=0, min=0, max=100, step=0.01, label="Blur amount:", visible=False, interactive=True)
-                    outfill_n_clusters = gr.Slider(value=5, min=1, max=50, step=1, label="Number of clusters:", visible=False, interactive=True)
+                    with gr.Column(visible=False) as color_container:
+                        outfill_color = gr.ColorPicker(value="#000000", label="Outfill border color:", interactive=True)
+                    with gr.Column(visible=False) as border_blur_container:
+                        outfill_border_blur = gr.Slider(value=0, min=0, max=100, step=0.01, label="Blur amount:", interactive=True)
+                    with gr.Column(visible=False) as n_clusters_container:
+                        outfill_n_clusters = gr.Slider(value=5, min=1, max=50, step=1, label="Number of clusters:", interactive=True)
                 with gr.Row():
                     output_dir = gr.Text(value=default_output_path, label="Save crops to:")
                     create_open_folder_button(output_dir, "open_folder_crops")
@@ -354,13 +357,13 @@ def on_ui_tabs():
                 ratio = fixed_size / max(w, h)
                 image = image.resize((math.ceil(w * ratio), math.ceil(h * ratio)))
                 if square_original:
-                    square_original = square_original.resize((fixed_size - 1, fixed_size - 1)) # i would prefer to resize to 512x512 but a sliver of unblurred image appears otherwise in the final result :/
+                    square_original = square_original.resize((fixed_size - 1, fixed_size - 1)) # i would prefer to resize to the exact fixed size but a sliver of unblurred image appears otherwise in the final result :/
             if outfill_setting != "Don't outfill":
                 image = outfill_methods[outfill_setting](image, color=outfill_color, blur=outfill_border_blur, n_clusters=outfill_n_clusters, original=square_original)
                 square_diameter = max(w, h)
                 if should_resize:
                     square_diameter = fixed_size
-                image = image.resize((square_diameter, square_diameter)) # final corrective resize step to make sure the output is actually square
+                image = image.resize((square_diameter, square_diameter)) # final corrective resize step to make sure the output is actually square (i can't design algorithms that consistently result in square images :p)
             return image
 
         def get_squared_original(full_im, bounds, outfill_method):
@@ -406,7 +409,7 @@ def on_ui_tabs():
         def bulk_process_button_click(frameset, should_resize, output_dir, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters):
             if outfill_setting == "Reuse original image":
                 return gr.Image.update(value="https://user-images.githubusercontent.com/2313721/200725535-d2aca52a-497f-4424-a2dd-200118f5ab66.png"), "what did you expect would happen with that outfill method"
-            for frame in tqdm((framesets_path / frameset).iterdir()):
+            for frame in tqdm(list((framesets_path / frameset).iterdir())):
                 if frame.suffix in [".png", ".jpg"]:
                     with Image.open(frame) as img:
                         img = process_image(img, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters)
@@ -419,40 +422,40 @@ def on_ui_tabs():
         def outfill_setting_change(outfill_setting): 
             outfill_outputs = [
                 "outfill_setting_options",
-                "outfill_color",
-                "outfill_border_blur",
-                "outfill_n_clusters",
-                "outfill_original_image_outfill_setting"
+                "color_container",
+                "border_blur_container",
+                "n_clusters_container",
+                "original_image_outfill_setting_container"
             ]
             visibility_pairs = {
                 "Solid color": [
                     "outfill_setting_options",
-                    "outfill_color"
+                    "color_container"
                 ],
                 "Blurred & stretched overlay" : [
                     "outfill_setting_options",
-                    "outfill_border_blur"
+                    "border_blur_container"
                 ],
                 "Dominant image color": [
                     "outfill_setting_options",
-                    "outfill_n_clusters"
+                    "n_clusters_container"
                 ],
                 "Stretch pixels at border": [
                     "outfill_setting_options",
-                    "outfill_border_blur"
+                    "border_blur_container"
                 ],
                 "Reflect image around border": [
                     "outfill_setting_options",
-                    "outfill_border_blur"
+                    "border_blur_container"
                 ],
                 "Reuse original image": [
                     "outfill_setting_options",
-                    "outfill_border_blur",
-                    "outfill_original_image_outfill_setting"
+                    "border_blur_container",
+                    "original_image_outfill_setting_container"
                 ]
             }
             return [gr.update(visible=(outfill_setting in visibility_pairs and o in visibility_pairs[outfill_setting])) for o in outfill_outputs]
-        outfill_setting.change(fn=outfill_setting_change, inputs=[outfill_setting], outputs=[outfill_setting_options, outfill_color, outfill_border_blur, outfill_n_clusters, outfill_original_image_outfill_setting])
+        outfill_setting.change(fn=outfill_setting_change, inputs=[outfill_setting], outputs=[outfill_setting_options, color_container, border_blur_container, n_clusters_container, original_image_outfill_setting_container])
 
         reset_aspect_ratio_button.click(fn=None, _js="resetAspectRatio", inputs=[], outputs=[])
 
