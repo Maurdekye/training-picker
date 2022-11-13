@@ -414,7 +414,7 @@ def on_ui_tabs():
             for frame in tqdm(list((framesets_path / frameset).iterdir())):
                 if frame.suffix in [".png", ".jpg"]:
                     with Image.open(frame) as img:
-                        img = process_image(img, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters)
+                        img = process_image(img, should_resize, outfill_setting, outfill_color, outfill_border_blur, outfill_n_clusters, None)
                         save_path = Path(output_dir)
                         os.makedirs(str(save_path.resolve()), exist_ok=True)
                         img.save(Path(output_dir) / frame.name)
