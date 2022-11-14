@@ -236,7 +236,10 @@ def on_ui_tabs():
                     video_dropdown = gr.Dropdown(choices=videos_list, elem_id="video_dropdown", label="Video to extract frames from:")
                     create_refresh_button(video_dropdown, lambda: None, lambda: {"choices": get_videos_list()}, "refresh_videos_list")
                     create_open_folder_button(videos_path, "open_folder_videos")
-                only_keyframes_checkbox = gr.Checkbox(value=True, label="Only extract keyframes (recommended)")
+                with gr.Row():
+                    only_keyframes_checkbox = gr.Checkbox(value=True, label="Only extract keyframes (recommended)")
+                    with gr.Column(visible=False) as frame_skip_container:
+                        frame_skip_input = gr.Number(value=1, min=1, label="Extract every nth frame", interactive=True)
                 extract_frames_button = gr.Button(value="Extract Frames", variant="primary")
                 log_output = gr.HTML(value="")
             with gr.Column():
@@ -279,7 +282,7 @@ def on_ui_tabs():
         crop_parameters = gr.Text(elem_id="crop_parameters", visible=False)
 
         # events
-        def extract_frames_button_click(video_file, only_keyframes):
+        def extract_frames_button_click(video_file, only_keyframes, frame_skip_input):
             try:
                 import ffmpeg
             except ModuleNotFoundError:
@@ -294,22 +297,29 @@ def on_ui_tabs():
                     print("Directory already exists!")
                     return gr.update(), f"Frame set already exists at {output_path}! Delete the folder first if you would like to recreate it."
                 os.makedirs(output_path, exist_ok=True)
+                output_name_fmat = str((output_path / "%02d.png").resolve())
                 if only_keyframes:
                     stream = ffmpeg.input(
                         str(full_path),
                         skip_frame="nokey",
-                        vsync="vfr")
+                        vsync="vfr",
+                    )
+                    stream.output(output_name_fmat).run()
                 else:
                     stream = ffmpeg.input(
-                        str(full_path)
+                        str(full_path),
+                        vsync="vfr",
                     )
-                stream.output(str((output_path / "%02d.png").resolve())).run()
+                    stream.output(
+                        output_name_fmat,
+                        vf=f"select=not(mod(n\,{frame_skip_input}))",
+                    ).run()
                 print("Extraction complete!")
                 return gr.Dropdown.update(choices=get_framesets_list()), f"Successfully created frame set {output_path.name}"
             except Exception as e:
                 print(f"Exception encountered while attempting to extract frames: {e}")
                 return gr.update(), f"Error: {e}"
-        extract_frames_button.click(fn=extract_frames_button_click, inputs=[video_dropdown, only_keyframes_checkbox], outputs=[frameset_dropdown, log_output])
+        extract_frames_button.click(fn=extract_frames_button_click, inputs=[video_dropdown, only_keyframes_checkbox, frame_skip_input], outputs=[frameset_dropdown, log_output])
 
         def get_image_update():
             global current_frame_set_index
@@ -318,6 +328,10 @@ def on_ui_tabs():
 
         def null_image_update():
             return gr.update(), 0, ""
+
+        def only_keyframes_checkbox_change(only_keyframes_checkbox):
+            return gr.update(visible=not only_keyframes_checkbox)
+        only_keyframes_checkbox.change(fn=only_keyframes_checkbox_change, inputs=[only_keyframes_checkbox], outputs=[frame_skip_container])
 
         def frameset_dropdown_change(frameset):
             global current_frame_set_index
