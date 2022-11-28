@@ -10,6 +10,8 @@ Adds a tab to the webui that allows the user to automatically extract keyframes 
 2. Install [ffmpeg](https://ffmpeg.org/) for your operating system
 3. Clone this repository into the `extensions` folder inside the webui
 
+Make sure you don't already have `python-ffmpeg` installed globally, as the library this program uses is `ffmpeg-python`, and your installation will conflict with it.
+
 ## Usage:
 
 ### Creating an extracted frame set
