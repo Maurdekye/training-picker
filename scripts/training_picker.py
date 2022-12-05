@@ -220,7 +220,7 @@ def on_ui_tabs():
         os.makedirs(p, exist_ok=True)
 
     def get_videos_list():
-        return list(v.name for v in videos_path.iterdir() if v.suffix in [".mp4"])
+        return list(v.name for v in videos_path.iterdir() if v.suffix in [".mp4", ".mkv"])
 
     def get_framesets_list():
         return list(v.name for v in framesets_path.iterdir() if v.is_dir())
