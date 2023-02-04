@@ -13,7 +13,8 @@ from tqdm import tqdm
 from PIL import Image, ImageFilter
 import cv2
 
-from modules.ui import create_refresh_button, folder_symbol
+from modules.ui import create_refresh_button
+from modules.ui_common import folder_symbol
 from modules.shared import opts, OptionInfo
 from modules import shared, paths, script_callbacks
 
@@ -249,10 +250,12 @@ def on_ui_tabs():
                     create_open_folder_button(framesets_path, "open_folder_framesets")
                 with gr.Row(elem_id="crop_options_row"):
                     resize_checkbox = gr.Checkbox(value=True, label=f"Resize crops to {fixed_size}x{fixed_size}")
+                with gr.Row():
                     outfill_setting = gr.Dropdown(choices=list(outfill_methods.keys()), value="Don't outfill", label="Outfill method:", interactive=True)
                     with gr.Row():
-                        reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
-                        bulk_process_button = gr.Button(value="Bulk process frames with chosen outfill method")
+                        with gr.Column():
+                            reset_aspect_ratio_button = gr.Button(value="Reset Aspect Ratio")
+                            bulk_process_button = gr.Button(value="Process", variant="primary")
                 with gr.Row(visible=False) as outfill_setting_options:
                     with gr.Column(visible=False, scale=0.3) as original_image_outfill_setting_container:
                         outfill_original_image_outfill_setting = gr.Dropdown(label="Image border outfill method:", scale=0.3, value="Stretch pixels at border", choices=["Stretch pixels at border", "Reflect image around border", "Black outfill"])
