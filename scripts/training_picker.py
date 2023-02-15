@@ -14,10 +14,10 @@ from PIL import Image, ImageFilter
 import cv2
 
 from modules.ui import create_refresh_button
-from modules.ui_common import folder_symbol
 from modules.shared import opts, OptionInfo
 from modules import shared, paths, script_callbacks
 
+folder_symbol = '\U0001f4c2'  # 📂
 current_frame_set = []
 current_frame_set_index = 0
 
