@@ -13,7 +13,7 @@ function cropPreviewRect() {
     if (!cropPreviewRect) {
         cropPreviewRect = document.createElement("div");
         cropPreviewRect.id = "cropPreviewRect";
-        gradioApp().getRootNode().appendChild(cropPreviewRect);
+        gradioApp().appendChild(cropPreviewRect);
     }
     return cropPreviewRect;
 }
